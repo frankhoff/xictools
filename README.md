@@ -266,7 +266,6 @@ though.  See the Xic or WRspice release notes).
  following lines (between the dashed lines) to the end of this file. 
  This will set your search path, among other things.
 ```
-----------------------------------------
 mount c:/usr/local  /usr/local
 mount -f c:/inno-5.5.9 /inno-5.5.9
 
@@ -276,7 +275,6 @@ if [ -z "$CYGWIN_BUILD" ]; then
 fi
 PATH="${HOME}/bin:$PATH"
 export PATH
-----------------------------------------
 ```
 3.  Go to http:/win-builds.org, and download the installer
 application.  Run the installer, with the location set to
