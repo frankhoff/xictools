@@ -128,27 +128,27 @@ the other packages.
 
 ## 2.  Dependencies
 
-wrspice
-  mozy (optional)
-  xt_base
-  KLU
-  vl
+- wrspice
+  - mozy (optional)
+  - xt_base
+  - KLU
+  - vl
 
-xic
-  mozy (optional)
-  xt_base
-  mrouter
+- xic
+  - mozy (optional)
+  - xt_base
+  - mrouter
 
-mozy
-  xt_base
+- mozy
+  - xt_base
 
-vl
-  xt_base
+- vl
+  - xt_base
 
-adms
-fastcap
-fasthenry
-  xt_base
+- adms
+- fastcap
+- fasthenry
+  - xt_base
 
 
 ## 3.  Building the XicTools
