@@ -1,5 +1,4 @@
-                    XicTools Open-Source  Release
-                         October 1, 2017
+# XicTools Open-Source Release October 1, 2017
 
 Whiteley Research is pleased to offer the XicTools programs:  Xic
 (graphical editor) and WRspice (circuit simulator) as open-source. 
@@ -57,7 +56,7 @@ security, and need for countermeasures.  Anyway, Bill Gates owes a big
 wet kiss to the GNU folks who made open-source toxic for so long.
 
 
-1. Overview - What's Here
+## 1. Overview - What's Here
 
 The distribution consists of several semi-independent programs and
 libraries, rooted in subdirectories.  These are described below.
@@ -127,7 +126,7 @@ This contains base libraries and configuration scripts for use with
 the other packages.
 
 
-2.  Dependencies
+## 2.  Dependencies
 
 wrspice
   mozy (optional)
@@ -152,9 +151,9 @@ fasthenry
   xt_base
 
 
-3.  Building the XicTools
+## 3.  Building the XicTools
 
-3.1.  Prerequisites
+### 3.1.  Prerequisites
 
 CentOS/RedHat Linux is the reference platform.  You should have
 success building the tools on a RPM-based Linux, including OpenSuSE
@@ -199,7 +198,7 @@ Also needed, libncurses using
 and libjpeg, libtiff using
   sudo apt-get install libjpeg-dev libtiff-dev
 
-3.2.  Build Procedure for Linux
+### 3.2.  Build Procedure for Linux
 
 The procedure is as follows.
 
@@ -231,7 +230,7 @@ supported, so direct installation is your sole option.
        This will install the programs from the package files.
 
 
-3.3  Windows
+### 3.3  Windows
 
 This is set up for a hybrid build environment consisting of Cygwin
 (www.cygwin.org, I use 64-bit version), win-builds-1.5
@@ -315,7 +314,7 @@ built into the packaging system so should not be changed.
 this window.
 
 
-3.4  OS X
+### 3.4  OS X
 
 You will need xcode, the X-Quartz X-Windows server, and the MacPorts
 gtk2 libraries.
