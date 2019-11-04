@@ -202,13 +202,10 @@ and libjpeg, libtiff using
 
 The procedure is as follows.
 
-    1.  Copy Makefile.sample into Makefile, edit Makefile to set the
-        configuration flags, as described in the Makefile.
-    2.  "make config" will configure the source tree to your build
-        environment.
-    3.  "make all" will build all of the programs.
-    4.  Thereafter, after changes, do "make reconfig" followed by
-        "make all".
+1.  Copy Makefile.sample into Makefile, edit Makefile to set the configuration flags, as described in the Makefile.
+2.  "make config" will configure the source tree to your build environment.
+3.  "make all" will build all of the programs.
+4.  Thereafter, after changes, do "make reconfig" followed by "make all".
 
 The intended installation procedure is to first build a binary package
 (e.g., RPM) for each program, then install the packages on your system
@@ -223,10 +220,10 @@ http://wrcad.com for info about the packages.  Basically, if you are a
 building on a non-rpm Linux, the packaging system is not yet
 supported, so direct installation is your sole option.
 
-    4. "make packages" will create all of the package files.
+4. "make packages" will create all of the package files.
        Packages are left in xt/xt_base/packages/pkgfiles.
 
-    5. cd xt_base/packages/pkgfiles; ../util/wr_install all
+5. cd xt_base/packages/pkgfiles; ../util/wr_install all
        This will install the programs from the package files.
 
 
@@ -268,7 +265,7 @@ though.  See the Xic or WRspice release notes).
 2.  From a bash window, edit your .bash_profile file.  Add the
  following lines (between the dashed lines) to the end of this file. 
  This will set your search path, among other things.
-
+`
 ----------------------------------------
 mount c:/usr/local  /usr/local
 mount -f c:/inno-5.5.9 /inno-5.5.9
@@ -280,7 +277,7 @@ fi
 PATH="${HOME}/bin:$PATH"
 export PATH
 ----------------------------------------
-
+`
 3.  Go to http:/win-builds.org, and download the installer
 application.  Run the installer, with the location set to
 
