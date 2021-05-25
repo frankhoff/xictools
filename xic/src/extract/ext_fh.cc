@@ -51,6 +51,7 @@
 #include "tech_layer.h"
 #include "tech_ldb3d.h"
 #include "miscutil/filestat.h"
+#include "miscutil/hashfunc.h"
 
 #include <algorithm>
 
@@ -459,8 +460,7 @@ namespace {
 // in order, but not necessarily with respect to layers of the other
 // type.  Conducting layers must have the CONDUCTOR attribute, and
 // have nonzero thickness.  Insulating layers must have the VIA
-// attribute and nonzero thickness.  The argument is the substrate
-// relative dielectric constant.
+// attribute and nonzero thickness.
 //
 fhLayout::fhLayout()
 {
@@ -476,8 +476,18 @@ fhLayout::fhLayout()
     const char *lname = CDvdb()->getVariable(VA_FhLayerName);
     if (!lname)
         lname = FH_LAYER_NAME;
+
+    // This is used only when approximating non-Manhattan edges.
+    int manh_gcnt = FH_DEF_MANH_GRID_CNT;
+    const char *var = CDvdb()->getVariable(VA_FhManhGridCnt);
+    if (var) {
+        int val = atoi(var);
+        if (val >= FH_MIN_MANH_GRID_CNT && val <= FH_MAX_MANH_GRID_CNT)
+            manh_gcnt = val;
+    }
     if (!init_for_extraction(CurCell(Physical), 0, lname,
-            Tech()->SubstrateEps(), Tech()->SubstrateThickness())) {
+            Tech()->SubstrateEps(), Tech()->SubstrateThickness(),
+            manh_gcnt, 0)) {
         Errs()->add_error("Layer setup failed.");
     }
 }
@@ -571,6 +581,63 @@ namespace {
 }
 
 
+namespace {
+    // Return the NHINC and RH for the layer.
+    //
+    void get_nhinc(Layer3d *l, int *pnh, double *prh)
+    {
+        TechLayerParams *lp = tech_prm(l->layer_desc());
+        if (pnh) {
+            int nh = lp->fh_nhinc();
+            if (nh >= FH_MIN_DEF_NHINC && nh <= FH_MAX_DEF_NHINC) {
+                if (CDvdb()->getVariable(VA_FhOverride)) {
+                    const char *str = CDvdb()->getVariable(VA_FhDefNhinc);
+                    if (str) {
+                        int nht = atoi(str);
+                        if (nht >= FH_MIN_DEF_NHINC && nht <= FH_MAX_DEF_NHINC)
+                            nh = nht;
+                    }
+                }
+            }
+            else {
+                nh = DEF_FH_NHINC;
+                const char *str = CDvdb()->getVariable(VA_FhDefNhinc);
+                if (str) {
+                    int nht = atoi(str);
+                    if (nht >= FH_MIN_DEF_NHINC && nht <= FH_MAX_DEF_NHINC)
+                        nh = nht;
+                }
+            }
+            *pnh = nh;
+        }
+
+        if (prh) {
+            double rh = lp->fh_rh();
+            if (rh >= FH_MIN_DEF_RH && rh <= FH_MAX_DEF_RH) {
+                if (CDvdb()->getVariable(VA_FhOverride)) {
+                    const char *str = CDvdb()->getVariable(VA_FhDefRh);
+                    if (str) {
+                        double rht = atof(str);
+                        if (rht >= FH_MIN_DEF_RH && rht <= FH_MAX_DEF_RH)
+                            rh = rht;
+                    }
+                }
+            }
+            else {
+                rh = DEF_FH_RH;
+                const char *str = CDvdb()->getVariable(VA_FhDefRh);
+                if (str) {
+                    double rht = atof(str);
+                    if (rht >= FH_MIN_DEF_RH && rht <= FH_MAX_DEF_RH)
+                        rh = rht;
+                }
+            }
+            *prh = rh;
+        }
+    }
+}
+
+
 // Create the segments, which will also create the nodes.  The nodes
 // are associated with the terminals.
 //
@@ -580,6 +647,7 @@ fhLayout::setup()
     if (!num_layers())
         return (false);
 
+//XXX document this!
     // Create debugging layers/zoids if set.
     fhl_zoids = CDvdb()->getVariable(VA_FhZoids);
 
@@ -587,30 +655,41 @@ fhLayout::setup()
     // refinement.  If 0, no refinement is done beyond the initial
     // splitting for tiling.
     int max_rect_size = 0;
-    const char *var = CDvdb()->getVariable(VA_FhVolElTarget);
+    int min_rect_size = 0;
+
+    const char *var = CDvdb()->getVariable(VA_FhVolElEnable);
     if (var) {
-        double val = atof(var);
-        if (val >= FH_MIN_TARG_VOLEL && val <= FH_MAX_TARG_VOLEL) {
-            double vol = 0.0;
-            for (Layer3d *l = layers(); l; l = l->next()) {
-                if (l->is_conductor())
-                    vol += glYlist3d::volume(l->yl3d());
+
+        var = CDvdb()->getVariable(VA_FhVolElTarget);
+        double val = var ? atof(var) : FH_DEF_VOLEL_TARG;
+        if (val < FH_MIN_VOLEL_TARG)
+            val = FH_MIN_VOLEL_TARG;
+        else if (val > FH_MAX_VOLEL_TARG)
+            val = FH_MAX_VOLEL_TARG;
+        double a = 0.0;
+        for (Layer3d *l = layers(); l; l = l->next()) {
+            if (l->is_conductor()) {
+                int nhinc;
+                get_nhinc(l, &nhinc, 0);
+                DspLayerParams *dp = dsp_prm(l->layer_desc());
+                a += nhinc*glYlist3d::volume(l->yl3d())/dp->thickness();
             }
-            double cvol = vol / val;
-            max_rect_size = INTERNAL_UNITS(cbrt(cvol));
-            TPRINT("Volume %g, FhVolElTarget %s, max_rec_size %d\n",
-                vol, var, max_rect_size);
         }
+        max_rect_size = INTERNAL_UNITS(sqrt(a/val));
+
+        var = CDvdb()->getVariable(VA_FhVolElMin);
+        val = var ? atof(var) : FH_DEF_VOLEL_MIN;
+        if (val < FH_MIN_VOLEL_MIN)
+            val = FH_MIN_VOLEL_MIN;
+        if (val > FH_MAX_VOLEL_MIN)
+            val = FH_MAX_VOLEL_MIN;
+        min_rect_size = val*max_rect_size;
+
+        TPRINT("Area %g, FhVolElTarget %s, max_rect_size %d min_rect_size %d\n",
+            a, var, max_rect_size, min_rect_size);
     }
 
-    // This is used only when approximating non-Manhattan edges.
-    int min_rect_size = INTERNAL_UNITS(FH_MIN_RECT_SIZE_DEF);
-    var = CDvdb()->getVariable(VA_FhMinRectSize);
-    if (var) {
-        double val = atof(var);
-        if (val >= FH_MIN_RECT_SIZE_MIN && val <= FH_MIN_RECT_SIZE_MAX)
-            min_rect_size = INTERNAL_UNITS(val);
-    }
+    // All geometry has been Manhattanized.
 
     // Create the arrays.
     fhl_layers = new fhLayer[num_layers()];
@@ -619,33 +698,27 @@ fhLayout::setup()
     for (Layer3d *l = layers(); l; l = l->next()) {
         if (l->is_conductor()) {
             fhLayer *cl = &fhl_layers[l->index()];
+            cl->set_layer(l);
             cl->clear_list();
             cl->addz3d(l->yl3d());
 
             // Fill in the cached material properties.
             double sigma = get_sigma(l->layer_desc());
+            double tau = tech_prm(l->layer_desc())->tau();
             double lambda = tech_prm(l->layer_desc())->lambda();
             if (lambda < 0.0)
                 lambda = 0.0;
-            for (fhConductor *c = cl->cndlist(); c; c = c->next())
-                c->set_siglam(sigma, lambda);
-        }
-    }
-
-    // Manhattanize all zoids.  The volume element tiling requires
-    // this.
-    if (min_rect_size > 0) {
-        for (Layer3d *l = layers(); l; l = l->next()) {
-            if (l->is_conductor()) {
-                fhLayer *cl = &fhl_layers[l->index()];
-                for (fhConductor *c = cl->cndlist(); c; c = c->next())
-                    c->manhattanize(min_rect_size);
+            for (fhConductor *c = cl->cndlist(); c; c = c->next()) {
+                c->set_sigma(sigma);
+                c->set_tau(tau);
+                c->set_lambda(lambda);
             }
         }
     }
 
-    slice_groups(max_rect_size);
+    slice_groups(max_rect_size, min_rect_size);
 
+#ifdef XXXnotddef
     // Cut at outside edges of other objects, along the long
     // dimension first, then the short dimension.
     //
@@ -655,52 +728,54 @@ fhLayout::setup()
         fhLayer *cl1 = &fhl_layers[l1->index()];
         for (fhConductor *c1 = cl1->cndlist(); c1; c1 = c1->next()) {
             glZlist3d *z0 = c1->zlist3d();
-            for (glZlist3d *z = z0; z; z = z->next) {
-                for (Layer3d *l2 = layers(); l2; l2 = l2->next()) {
-                    if (!l2->is_conductor())
-                        continue;
-                    fhLayer *cl2 = &fhl_layers[l2->index()];
-                    if (cl2 == cl1)
-                        continue;
-                    for (fhConductor *c2 = cl2->cndlist(); c2;
-                            c2 = c2->next()) {
-                        PolyList *pl = c2->polylist();
+            for (Layer3d *l2 = layers(); l2; l2 = l2->next()) {
+                if (!l2->is_conductor())
+                    continue;
+                fhLayer *cl2 = &fhl_layers[l2->index()];
+                if (cl2 == cl1)
+                    continue;
+                for (fhConductor *c2 = cl2->cndlist(); c2; c2 = c2->next()) {
+                    PolyList *pl = c2->polylist();
+                    for (glZlist3d *z = z0; z; z = z->next) {
                         for (PolyList *p = pl; p; p = p->next) {
                             for (int i = 1; i < p->po.numpts; i++) {
-                                if (z->Z.xlr - z->Z.xll > z->Z.yu - z->Z.yl)
+                                if (z->Z.xlr - z->Z.xll > z->Z.yu - z->Z.yl) {
                                     cut_zoid_h(z, p->po.points[i-1],
                                         p->po.points[i]);
-                                else
+                                }
+                                else {
                                     cut_zoid_v(z, p->po.points[i-1],
                                         p->po.points[i]);
+                                }
                             }
                         }
-                        PolyList::destroy(pl);
                     }
+                    PolyList::destroy(pl);
                 }
             }
-            for (glZlist3d *z = z0; z; z = z->next) {
-                for (Layer3d *l2 = layers(); l2; l2 = l2->next()) {
-                    if (!l2->is_conductor())
-                        continue;
-                    fhLayer *cl2 = &fhl_layers[l2->index()];
-                    if (cl2 == cl1)
-                        continue;
-                    for (fhConductor *c2 = cl2->cndlist(); c2;
-                            c2 = c2->next()) {
-                        PolyList *pl = c2->polylist();
+            for (Layer3d *l2 = layers(); l2; l2 = l2->next()) {
+                if (!l2->is_conductor())
+                    continue;
+                fhLayer *cl2 = &fhl_layers[l2->index()];
+                if (cl2 == cl1)
+                    continue;
+                for (fhConductor *c2 = cl2->cndlist(); c2; c2 = c2->next()) {
+                    PolyList *pl = c2->polylist();
+                    for (glZlist3d *z = z0; z; z = z->next) {
                         for (PolyList *p = pl; p; p = p->next) {
                             for (int i = 1; i < p->po.numpts; i++) {
-                                if (z->Z.xlr - z->Z.xll > z->Z.yu - z->Z.yl)
+                                if (z->Z.xlr - z->Z.xll > z->Z.yu - z->Z.yl) {
                                     cut_zoid_v(z, p->po.points[i-1],
                                         p->po.points[i]);
-                                else
+                                }
+                                else {
                                     cut_zoid_h(z, p->po.points[i-1],
                                         p->po.points[i]);
+                                }
                             }
                         }
-                        PolyList::destroy(pl);
                     }
+                    PolyList::destroy(pl);
                 }
             }
         }
@@ -708,7 +783,8 @@ fhLayout::setup()
 
     // Do the self-cutting again, to propagate new boundaries.
     //
-    slice_groups(0);
+    slice_groups(0, 0);
+#endif
     slice_groups_z(max_rect_size);
 
     if (db3_logfp) {
@@ -738,6 +814,9 @@ fhLayout::setup()
             for (fhConductor *cd = cl->cndlist(); cd; cd = cd->next())
                 cd->segmentize(fhl_ngen);
         }
+    }
+    if (db3_logfp) {
+        TPRINT("Nodes allocated=%d\n", fhl_ngen.allocated());
     }
 
     // Create terminals array.
@@ -858,7 +937,7 @@ fhLayout::setup()
             if (l->is_conductor()) {
                 fhLayer *cl = &fhl_layers[l->index()];
                 for (fhConductor *c = cl->cndlist(); c; c = c->next())
-                    c->save_zlist_db();
+                    c->save_dbg_zlist();
             }
         }
     }
@@ -886,8 +965,11 @@ fhLayout::fh_dump(FILE *fp)
     e_unit unit = (e_unit)u;
 
     fprintf(fp, ".Units %s\n", unit_t::units(unit)->name());
-    fprintf(fp, "\n");
+    const char *defs = CDvdb()->getVariable(VA_FhDefaults);
+    if (defs && *defs)
+        fprintf(fp, ".Default %s\n", defs);
 
+    fprintf(fp, "\n");
     layer_dump(fp);
     fprintf(fp, "\n");
 
@@ -902,7 +984,7 @@ fhLayout::fh_dump(FILE *fp)
                 fprintf(fp,
                     "*Segments of conductor element %d, group %d, layer %s.\n",
                     cnum, cd->group(), l->layer_desc()->name());
-                nsegs += cd->segments_print(fp, unit, &fhl_ngen);
+                nsegs += cd->segments_print(fp, unit, this);
             }
         }
     }
@@ -949,7 +1031,7 @@ fhLayout::fh_dump(FILE *fp)
 
 
 namespace {
-    // Create a sorted, momotonically increasing array of values from
+    // Create a sorted, monotonically increasing array of values from
     // the hash table.
     //
     void sort_points(SymTab *tab, int **ppts, int *pnp)
@@ -959,10 +1041,34 @@ namespace {
         SymTabGen gen(tab);
         int cnt = 0;
         while ((ent = gen.next()) != 0)
-            pts[cnt++] = (int)(unsigned long)ent->stTag;
+            pts[cnt++] = (int)(uintptr_t)ent->stTag;
         std::sort(pts, pts + cnt);
         *ppts = pts;
         *pnp = cnt;
+    }
+
+
+    // Throw out values that are spaced less thjan mindim.
+    //
+    void filter(int *ppts, int *pnp, int mindim)
+    {
+        if (mindim < 10)
+            return;
+
+        int np = *pnp;
+        int npn = np;
+        int *pp = ppts;
+        for (int i = 1; i < np; i++) {
+            int d = ppts[i] - *pp;
+            if (d < mindim) {
+                npn--;
+                continue;
+            }
+            pp++;
+            if (npn != np)
+                *pp = ppts[i];
+        }
+        *pnp = npn;
     }
 
 
@@ -973,6 +1079,7 @@ namespace {
     {
         if (maxdim <= 0)
             return;
+
         int sz = 0;
         int npm1 = *pnp - 1;
         int *oldpts = *ppts;
@@ -1010,32 +1117,82 @@ namespace {
 
 
 void
-fhLayout::slice_groups(int maxdim)
+fhLayout::slice_groups(int maxdim, int mindim)
 {
-    for (int g = 0; g < num_groups(); g++) {
-        SymTab xtab(false, false), ytab(false, false);
-        for (Layer3d *l = layers(); l; l = l->next()) {
-            if (l->is_conductor()) {
-                fhLayer *cl = &fhl_layers[l->index()];
-                for (fhConductor *c = cl->cndlist(); c; c = c->next())
-                    c->accum_points(&xtab, &ytab);
-            }
+    SymTab xtab(false, false), ytab(false, false);
+    for (int n = 0; n < num_layers(); n++) {
+        Layer3d *l = fhl_layers[n].layer();
+        if (!l || !l->is_conductor())
+            continue;
+
+        for (fhConductor *c = fhl_layers[n].cndlist(); c; c = c->next())
+            c->accum_points(&xtab, &ytab);
+    }
+
+    int *xpts, nx;
+    int *ypts, ny;
+    sort_points(&xtab, &xpts, &nx);
+    sort_points(&ytab, &ypts, &ny);
+    filter(xpts, &nx, mindim);
+    filter(ypts, &ny, mindim);
+    expand(&xpts, &nx, maxdim);
+    expand(&ypts, &ny, maxdim);
+
+    for (int n = 0; n < num_layers(); n++) {
+        Layer3d *l = fhl_layers[n].layer();
+        if (!l || !l->is_conductor())
+            continue;
+
+        for (fhConductor *c = fhl_layers[n].cndlist(); c; c = c->next())
+            c->split(xpts, nx, ypts, ny);
+    }
+
+    delete [] xpts;
+    delete [] ypts;
+}
+
+
+namespace {
+    // Return an array of nh thicknesses, with adjacent thickness
+    // ratio r, normalized such that the total thickness = 1.0.  This
+    // is used to set up the "nhinc" slicing.
+    //
+    double *get_ztab(int nh, double r)
+    {
+        if (nh < 1)
+            return (0);
+        if (nh == 1) {
+            double *a = new double[1];
+            a[0] = 1.0;
+            return (a);
         }
-        int *xpts, nx;
-        int *ypts, ny;
-        sort_points(&xtab, &xpts, &nx);
-        sort_points(&ytab, &ypts, &ny);
-        expand(&xpts, &nx, maxdim);
-        expand(&ypts, &ny, maxdim);
-        for (Layer3d *l = layers(); l; l = l->next()) {
-            if (l->is_conductor()) {
-                fhLayer *cl = &fhl_layers[l->index()];
-                for (fhConductor *c = cl->cndlist(); c; c = c->next())
-                    c->split(xpts, nx, ypts, ny);
-            }
+
+        if (r <= 0.0)
+            r = 2.0;
+
+        // Compute t = total thickness in units of the surface filament.
+        double t = 0.0;
+        int n2 = nh/2;
+        double nn = 1.0;
+        for (int i = 0; i < n2; i++) {
+            t += nn;
+            nn *= r;
         }
-        delete [] xpts;
-        delete [] ypts;
+        t += t;
+        if (nh & 1)
+            t += nn;
+
+        // Load and return the thickness values.
+        double *a = new double[nh];
+        nn = 1.0;
+        for (int i = 0; i < n2; i++) {
+            a[i] = nn/t;
+            a[nh-i-1] = a[i];
+            nn *= r;
+        }
+        if (nh & 1)
+            a[n2] = nn/t;
+        return (a);
     }
 }
 
@@ -1043,25 +1200,41 @@ fhLayout::slice_groups(int maxdim)
 void
 fhLayout::slice_groups_z(int maxdim)
 {
-    for (int g = 0; g < num_groups(); g++) {
+    bool fhfils = CDvdb()->getVariable(VA_FhUseFilament);
+    for (int n = 0; n < num_layers(); n++) {
+        Layer3d *l = fhl_layers[n].layer();
+        if (!l || !l->is_conductor())
+            continue;
+
         SymTab ztab(false, false);
-        for (Layer3d *l = layers(); l; l = l->next()) {
-            if (l->is_conductor()) {
-                fhLayer *cl = &fhl_layers[l->index()];
-                for (fhConductor *c = cl->cndlist(); c; c = c->next())
-                    c->accum_points_z(&ztab);
+
+        if (!fhfils && l->plane() > 0) {
+            int nhinc;
+            double rh;
+            get_nhinc(l, &nhinc, &rh);
+            if (nhinc > 1) {
+                double th = dsp_prm(l->layer_desc())->thickness();
+                double *a = get_ztab(nhinc, rh);
+                ztab.add((uintptr_t)l->plane(), 0, true);
+                double h = MICRONS(l->plane());
+                for (int i = 0; i < nhinc; i++) {
+                    h += th*a[i];
+                    ztab.add((uintptr_t)INTERNAL_UNITS(h), 0, true);
+                }
+                delete [] a;
             }
         }
+
+        for (fhConductor *c = fhl_layers[n].cndlist(); c; c = c->next())
+            c->accum_points_z(&ztab);
+
         int *zpts, nz;
         sort_points(&ztab, &zpts, &nz);
         expand(&zpts, &nz, maxdim);
-        for (Layer3d *l = layers(); l; l = l->next()) {
-            if (l->is_conductor()) {
-                fhLayer *cl = &fhl_layers[l->index()];
-                for (fhConductor *c = cl->cndlist(); c; c = c->next())
-                    c->split_z(zpts, nz);
-            }
-        }
+
+        for (fhConductor *c = fhl_layers[n].cndlist(); c; c = c->next())
+            c->split_z(zpts, nz);
+
         delete [] zpts;
     }
 }
@@ -1251,7 +1424,7 @@ fhLayout::check_sort_terms()
 }
 
 
-// Dump the prot specifications.  We've already checked that all is
+// Dump the port specifications.  We've already checked that all is
 // well with the terminals.
 //
 void
@@ -1304,11 +1477,19 @@ fhConductor::addz3d(fhConductor *thisc, const glZoid3d *Z)
 fhNodeList *
 fhConductor::get_nodes(const fhNodeGen &ngen, int numpts, const Point *pts)
 {
+    // Make sure all returned nodes are actually referenced by a
+    // segment.
+    SymTab *st = new SymTab(false, false);
+    for (fhSegment *s = hc_segments; s; s = s->next()) {
+        st->add(s->node1(), s, true);
+        st->add(s->node2(), s, true);
+    }
+
     fhNodeList *nodes = ngen.find_nodes(numpts, pts);
     fhNodeList *np = 0, *nn;
     for (fhNodeList *n = nodes; n; n = nn) {
         nn = n->next;
-        if (!find_segment_by_node(n->nd->number())) {
+        if (SymTab::get(st, n->nd->number()) == ST_NIL) {
             if (np)
                 np->next = nn;
             else
@@ -1318,6 +1499,7 @@ fhConductor::get_nodes(const fhNodeGen &ngen, int numpts, const Point *pts)
         }
         np = n;
     }
+    delete st;
     return (nodes);
 }
 
@@ -1372,40 +1554,39 @@ fhConductor::segmentize(fhNodeGen &ngen)
 }
 
 
-// Return the first segment found containing the node.
-//
-fhSegment *
-fhConductor::find_segment_by_node(int nd)
-{
-    for (fhSegment *s = hc_segments; s; s = s->next()) {
-        if (s->node1() == nd || s->node2() == nd)
-            return (s);
-    }
-    return (0);
-}
-
-
 // Print the FastHenry segment definition.
 //
 int
-fhConductor::segments_print(FILE *fp, e_unit unit, const fhNodeGen *gen)
+fhConductor::segments_print(FILE *fp, e_unit unit, const fhLayout *fhl)
 {
     char buf[128];
     buf[0] = 0;
     const unit_t *u = unit_t::units(unit);
-    if (hc_sigma > 0)
+    if (hc_sigma > 0.0) {
         sprintf(buf, " sigma= %g", hc_sigma*u->sigma_factor());
+        if (hc_tau > 0.0 && hc_lambda <= 0.0)
+            sprintf(buf + strlen(buf), " tau= %g", hc_tau);
+    }
     if (hc_lambda > 0)
         sprintf(buf + strlen(buf), " lambda= %g", hc_lambda*u->lambda_factor());
     double sc = u->coord_factor();
     const char *ff = u->float_format();
     char tbuf[64];
     int cnt = 0;
+
+    Layer3d *l = (fhl->fhlayers() + hc_layer_ix)->layer();
+    DspLayerParams *dp = dsp_prm(l->layer_desc());
+    int thickness = INTERNAL_UNITS(dp->thickness());
+    int nhinc = 0;
+    double rh = 0.0;
+    if (CDvdb()->getVariable(VA_FhUseFilament))
+        get_nhinc(l, &nhinc, &rh);
+
     for (fhSegment *s = hc_segments; s; s = s->next()) {
-        fhNode *n1 = gen->find_node(s->node1(), s->pn1());
+        fhNode *n1 = fhl->nodes()->find_node(s->node1(), s->pn1());
         if (!n1 || n1->refcnt() < 2)
             continue;
-        fhNode *n2 = gen->find_node(s->node2(), s->pn2());
+        fhNode *n2 = fhl->nodes()->find_node(s->node2(), s->pn2());
         if (!n2 || n2->refcnt() < 2)
             continue;
         sprintf(tbuf, "En%dn%d", s->node1(), s->node2());
@@ -1415,6 +1596,13 @@ fhConductor::segments_print(FILE *fp, e_unit unit, const fhNodeGen *gen)
         fprintf(fp, ff, sc*s->wid());
         fprintf(fp, " h=");
         fprintf(fp, ff, sc*s->hei());
+        if (nhinc > 1 && s->pn1()->z == s->pn2()->z &&
+                INTERNAL_UNITS(sc*s->hei()) == thickness) {
+            fprintf(fp, " nhinc=%d", nhinc);
+            if (rh != DEF_FH_RH && rh > 0.0)
+                fprintf(fp, " rh=%g", rh);
+        }
+
         fprintf(fp, "%s\n", buf);
         cnt++;
     }
@@ -1504,10 +1692,10 @@ void
 fhConductor::accum_points(SymTab *xtab, SymTab *ytab)
 {
     for (const glZlist3d *z = hc_zlist3d; z; z = z->next) {
-        xtab->add((unsigned long)z->Z.xll, 0, true);
-        xtab->add((unsigned long)z->Z.xlr, 0, true);
-        ytab->add((unsigned long)z->Z.yl, 0, true);
-        ytab->add((unsigned long)z->Z.yu, 0, true);
+        xtab->add((uintptr_t)z->Z.xll, 0, true);
+        xtab->add((uintptr_t)z->Z.xlr, 0, true);
+        ytab->add((uintptr_t)z->Z.yl, 0, true);
+        ytab->add((uintptr_t)z->Z.yu, 0, true);
     }
 }
 
@@ -1516,8 +1704,8 @@ void
 fhConductor::accum_points_z(SymTab *ztab)
 {
     for (const glZlist3d *z = hc_zlist3d; z; z = z->next) {
-        ztab->add((unsigned long)z->Z.zbot, 0, true);
-        ztab->add((unsigned long)z->Z.ztop, 0, true);
+        ztab->add((uintptr_t)z->Z.zbot, 0, true);
+        ztab->add((uintptr_t)z->Z.ztop, 0, true);
     }
 }
 
@@ -1586,13 +1774,28 @@ fhConductor::split_z(int *zpts, int nz)
 }
 
 
+namespace {
+    stringlist *dbg_layers = 0;
+}
+
+
 // Add the Zlist as objects in the current cell, for debugging.
 //
 void
-fhConductor::save_zlist_db()
+fhConductor::save_dbg_zlist()
 {
     char buf[64];
     sprintf(buf, "G%dL%d:FH", hc_group, hc_layer_ix);
+    bool there = false;
+    for (stringlist *sl = dbg_layers; sl; sl = sl->next) {
+        if (!strcmp(sl->string, buf)) {
+            there = true;
+            break;
+        }
+    }
+    if (!there)
+        dbg_layers = new stringlist(lstring::copy(buf), dbg_layers);
+    
     CDl *ld = CDldb()->newLayer(buf, Physical);
     CurCell(Physical)->db_clear_layer(ld);
     Zlist *zl = glZlist3d::to_zlist(hc_zlist3d);
@@ -1602,21 +1805,57 @@ fhConductor::save_zlist_db()
 // End of fhConductor functions.
 
 
+// Clear the added objects.
+// Static function.
+//
+void
+fhLayout::clear_dbg_zlist()
+{
+    while (dbg_layers) {
+        stringlist *sl = dbg_layers;
+        dbg_layers = dbg_layers->next;
+        CDl *ld = CDldb()->findLayer(sl->string, Physical);
+        if (ld)
+            CurCell(Physical)->db_clear_layer(ld);
+        delete [] sl->string;
+        delete sl;
+    }
+}
+
+
+namespace {
+    unsigned int nhash(int x, int y, int z, unsigned int mask)
+    {
+        unsigned int k = INCR_HASH_INIT;
+        k = incr_hash(k, &x);
+        k = incr_hash(k, &y);
+        k = incr_hash(k, &z);
+        return (k & mask);
+    }
+}
+
+
+// Table max density.
+#define FH_NGDENS 5
+
 // Return a node number, check if this node has already been assigned.
 //
 int
 fhNodeGen::newnode(xyz3d *p)
 {
-    int ix = abs(p->x + p->y + p->z) % FH_NDHASHW;
-    for (fhNode *n = ng_tab[ix]; n; n = n->next()) {
+    unsigned int h = nhash(p->x, p->y, p->z, ng_mask);
+    for (fhNode *n = ng_tab[h]; n; n = n->next()) {
         if (*p == *n->loc()) {
             n->inc_ref();
             return (n->number());
         }
     }
-    ng_tab[ix] = new fhNode(ng_ncnt++, p, ng_tab[ix]);
-    ng_tab[ix]->inc_ref();
-    return (ng_tab[ix]->number());
+    ng_tab[h] = new fhNode(ng_allocated++, p, ng_tab[h]);
+    ng_tab[h]->inc_ref();
+    int n = ng_tab[h]->number();
+    if (ng_allocated/(ng_mask+1) > FH_NGDENS)
+        rehash();
+    return (n);
 }
 
 
@@ -1626,7 +1865,7 @@ void
 fhNodeGen::nodeBB(BBox *BB) const
 {
     bool first = true;
-    for (int i = 0; i < FH_NDHASHW; i++) {
+    for (unsigned int i = 0; i <= ng_mask; i++) {
         for (fhNode *n = ng_tab[i]; n; n = n->next()) {
             if (first) {
                 first = false;
@@ -1656,7 +1895,7 @@ fhNodeGen::find_nodes(int npts, const Point *pts) const
     fhNodeList *n0 = 0;
     if (npts == 2) {
         // This is a rect (L,B), (R,T).
-        for (int i = 0; i < FH_NDHASHW; i++) {
+        for (unsigned int i = 0; i <= ng_mask; i++) {
             for (fhNode *n = ng_tab[i]; n; n = n->next()) {
                 if (pts[0].x <= n->loc()->x && n->loc()->x <= pts[1].x &&
                         pts[0].y <= n->loc()->y && n->loc()->y <= pts[1].y)
@@ -1666,7 +1905,7 @@ fhNodeGen::find_nodes(int npts, const Point *pts) const
     }
     else if (npts >= 4) {
         Poly po(npts, (Point*)pts);  // ugly
-        for (int i = 0; i < FH_NDHASHW; i++) {
+        for (unsigned int i = 0; i <= ng_mask; i++) {
             for (fhNode *n = ng_tab[i]; n; n = n->next()) {
                 Point_c p(n->loc()->x, n->loc()->y);
                 if (po.intersect(&p, true))
@@ -1681,8 +1920,8 @@ fhNodeGen::find_nodes(int npts, const Point *pts) const
 fhNode *
 fhNodeGen::find_node(int num, const xyz3d *p) const
 {
-    int ix = abs(p->x + p->y + p->z) % FH_NDHASHW;
-    for (fhNode *n = ng_tab[ix]; n; n = n->next()) {
+    unsigned int h = nhash(p->x, p->y, p->z, ng_mask);
+    for (fhNode *n = ng_tab[h]; n; n = n->next()) {
         if (num == (int)n->number() && *p == *n->loc())
             return (n);
     }
@@ -1698,7 +1937,7 @@ fhNodeGen::fh_nodes_print(FILE *fp, e_unit unit) const
     double sc = unit_t::units(unit)->coord_factor();
     const char *ff = unit_t::units(unit)->float_format();
     int cnt = 0;
-    for (int i = 0; i < FH_NDHASHW; i++) {
+    for (unsigned int i = 0; i <= ng_mask; i++) {
         for (fhNode *n = ng_tab[i]; n; n = n->next()) {
             if (n->refcnt() > 1) {
                 fprintf(fp, "N%-4d", n->number());
@@ -1722,11 +1961,39 @@ fhNodeGen::fh_nodes_print(FILE *fp, e_unit unit) const
 void
 fhNodeGen::clear()
 {
-    ng_ncnt = 1;
-    for (int i = 0; i < FH_NDHASHW; i++) {
+    for (unsigned int i = 0; i <= ng_mask; i++)
         fhNode::destroy(ng_tab[i]);
+    delete [] ng_tab;
+    ng_allocated = 0;
+    ng_mask = ~((unsigned int)-1 << FH_NDHASHW);
+    ng_tab = new fhNode*[ng_mask+1];
+    memset(ng_tab, 0, (ng_mask+1)*sizeof(fhNode*));
+}
+
+
+// Grow the hash table width.  This is called after adding elements if
+// the element count to width ratio exceeds FH_NGDENS.
+//
+void
+fhNodeGen::rehash()
+{
+    unsigned int oldmask = ng_mask;
+    ng_mask = (oldmask << 1) | 1;
+    fhNode **oldent = ng_tab;
+    ng_tab = new fhNode*[ng_mask + 1];
+    for (unsigned int i = 0; i <= ng_mask; i++)
         ng_tab[i] = 0;
+    for (unsigned int i = 0; i <= oldmask; i++) {
+        fhNode *hn;
+        for (fhNode *h = oldent[i]; h; h = hn) {
+            hn = h->next();
+            unsigned int j = nhash(h->loc()->x, h->loc()->y, h->loc()->z,
+                ng_mask);
+            h->set_next(ng_tab[j]);
+            ng_tab[j] = h;
+        }
     }
+    delete [] oldent;
 }
 // End of fhNodeGen functions.
 

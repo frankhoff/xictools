@@ -158,7 +158,7 @@ namespace ginterf
         Window reset_drawable(Drawable d)
             { Window prev = window; window = d; return (prev); }
 
-        unsigned long WindowID()                        { return (0); }
+        void *WindowID()                                        { return (0); }
         void Halt();
         void Title(const char*, const char*)                    { }
         void Clear();
@@ -260,10 +260,11 @@ Xdev::NewDraw(int)
 namespace {
     bool x_error;
 
-    void
+    int
     handle_x_error(Display*, XErrorEvent*)
     {
         x_error = true;
+        return (1);
     }
 }
 

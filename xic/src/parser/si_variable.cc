@@ -162,8 +162,11 @@ SIparser::setVar(const char *vname, const char *val)
         if (!strcmp(vname, v->name))
             return (v->set_var(range ? &rv : 0, val));
     }
-    sprintf(tbuf, "Variable %s is not in scope, can't set.", vname);
-    return (lstring::copy(tbuf));
+    sLstr lstr;
+    lstr.add("Variable ");
+    lstr.add(vname);
+    lstr.add(" is not in scope, can't set.");
+    return (lstr.string_trim());
 }
 
 
@@ -390,7 +393,7 @@ Variable::incr__handle(Variable *res)
                 delete obj;
         }
         else if (hdl->type == HDLgen) {
-            int tid = (long)hdl->iterator();
+            int tid = (intptr_t)hdl->iterator();
             sHdl *nhdl = sHdl::get(tid);
             if (nhdl)
                 nhdl->close(tid);

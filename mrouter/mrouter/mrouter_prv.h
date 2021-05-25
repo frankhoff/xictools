@@ -54,6 +54,7 @@
 #ifndef MROUTER_H
 #define MROUTER_H
 
+#include <stdint.h>
 #include "mrouter.h"
 #include "mr_stack.h"
 #include "miscutil/lstring.h"
@@ -300,11 +301,11 @@ struct mrNodeInfo
 
     dbNode  *nodeSav()              { return ((dbNode*)(ni_nsav & ~3UL)); }
     void    setNodeSav(dbNode *n)   { ni_nsav =
-                                      (unsigned long)n | (ni_nsav & 3); }
+                                      (uintptr_t)n | (ni_nsav & 3); }
 
     dbNode  *nodeLoc()              { return ((dbNode*)(ni_nloc & ~3UL)); }
     void    setNodeLoc(dbNode *n)   { ni_nloc =
-                                      (unsigned long)n | (ni_nloc & 3); }
+                                      (uintptr_t)n | (ni_nloc & 3); }
 
     lefu_t  stub()                  { return (ni_stub); }
     void    setStub(lefu_t d)       { ni_stub = d; }
@@ -320,8 +321,8 @@ struct mrNodeInfo
         }
 
 private:
-    unsigned long ni_nsav;
-    unsigned long ni_nloc;
+    uintptr_t ni_nsav;
+    uintptr_t ni_nloc;
     lefu_t  ni_stub;
     lefu_t  ni_offs;
 };

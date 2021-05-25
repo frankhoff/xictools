@@ -96,6 +96,7 @@ enum OPTtype
 #endif
     OPT_MAXORD,
     OPT_SRCSTEPS,
+    OPT_VASTEP,
 
     // flags
     OPT_DCODDSTEP,
@@ -129,6 +130,12 @@ enum OPTtype
 
     // special parameters
     OPT_DELTA,
+    OPT_MAXDELTA,
+    OPT_TSTEP,
+    OPT_TSTOP,
+    OPT_TSTART,
+    OPT_FSTOP,
+    OPT_FSTART,
     OPT_EXTERNAL
 };
 

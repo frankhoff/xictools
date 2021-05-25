@@ -109,92 +109,103 @@ namespace {
     };
 
     sFunc ft_uops[] = {
-        sFunc( "-",           &sDataVec::v_uminus,   1 ),
-        sFunc( "~",           &sDataVec::v_not,      1 ),
-        sFunc( 0,             0, 0 )
+        sFunc( "-",             &sDataVec::v_uminus,    1 ),
+        sFunc( "~",             &sDataVec::v_not,       1 ),
+        sFunc( 0 )
     };
 
     sFunc ft_funcs[] = {
-        sFunc( "mag",         &sDataVec::v_mag,      1 ),
-        sFunc( "magnitude",   &sDataVec::v_mag,      1 ),
-        sFunc( "ph",          &sDataVec::v_ph,       1 ),
-        sFunc( "phase",       &sDataVec::v_ph,       1 ),
-        sFunc( "j",           &sDataVec::v_j,        1 ),
-        sFunc( "real",        &sDataVec::v_real,     1 ),
-        sFunc( "re",          &sDataVec::v_real,     1 ),
-        sFunc( "imag",        &sDataVec::v_imag,     1 ),
-        sFunc( "im",          &sDataVec::v_imag,     1 ),
-        sFunc( "db",          &sDataVec::v_db,       1 ),
-        sFunc( "log10",       &sDataVec::v_log10,    1 ),
-        sFunc( "log",         &sDataVec::v_log,      1 ),
-        sFunc( "ln",          &sDataVec::v_ln,       1 ),
-        sFunc( "exp",         &sDataVec::v_exp,      1 ),
-        sFunc( "abs",         &sDataVec::v_mag,      1 ),
-        sFunc( "sqrt",        &sDataVec::v_sqrt,     1 ),
-        sFunc( "sin",         &sDataVec::v_sin,      1 ),
-        sFunc( "cos",         &sDataVec::v_cos,      1 ),
-        sFunc( "tan",         &sDataVec::v_tan,      1 ),
-        sFunc( "asin",        &sDataVec::v_asin,     1 ),
-        sFunc( "acos",        &sDataVec::v_acos,     1 ),
-        sFunc( "atan",        &sDataVec::v_atan,     1 ),
-        sFunc( "sinh",        &sDataVec::v_sinh,     1 ),
-        sFunc( "cosh",        &sDataVec::v_cosh,     1 ),
-        sFunc( "tanh",        &sDataVec::v_tanh,     1 ),
-        sFunc( "asinh",       &sDataVec::v_asinh,    1 ),
-        sFunc( "acosh",       &sDataVec::v_acosh,    1 ),
-        sFunc( "atanh",       &sDataVec::v_atanh,    1 ),
-        sFunc( "j0",          &sDataVec::v_j0,       1 ),
-        sFunc( "j1",          &sDataVec::v_j1,       1 ),
-        sFunc( "jn",          &sDataVec::v_jn,       1 ),
-        sFunc( "y0",          &sDataVec::v_y0,       1 ),
-        sFunc( "y1",          &sDataVec::v_y1,       1 ),
-        sFunc( "yn",          &sDataVec::v_yn,       1 ),
-        sFunc( "cbrt",        &sDataVec::v_cbrt,     1 ),
-        sFunc( "erf",         &sDataVec::v_erf,      1 ),
-        sFunc( "erfc",        &sDataVec::v_erfc,     1 ),
-        sFunc( "gamma",       &sDataVec::v_gamma,    1 ),
-        sFunc( "norm",        &sDataVec::v_norm,     1 ),
-        sFunc( "fft",         &sDataVec::v_fft,      1 ),
-        sFunc( "ifft",        &sDataVec::v_ifft,     1 ),
-        sFunc( "pos",         &sDataVec::v_pos,      1 ),
-        sFunc( "mean",        &sDataVec::v_mean,     1 ),
-        sFunc( "vector",      &sDataVec::v_vector,   1 ),
-        sFunc( "unitvec",     &sDataVec::v_unitvec,  1 ),
-        sFunc( "length",      &sDataVec::v_size,     1 ),
-        sFunc( "interpolate", &sDataVec::v_interpolate, 1 ),
-        sFunc( "deriv",       &sDataVec::v_deriv,    1 ),
-        sFunc( "integ",       &sDataVec::v_integ,    1 ),
-        sFunc( "rms",         &sDataVec::v_rms,      1 ),
-        sFunc( "sum",         &sDataVec::v_sum,      1 ),
-        sFunc( "floor",       &sDataVec::v_floor,    1 ),
-        sFunc( "sgn",         &sDataVec::v_sgn,      1 ),
-        sFunc( "ceil",        &sDataVec::v_ceil,     1 ),
-        sFunc( "int",         &sDataVec::v_rint,     1 ),
-        sFunc( "v",           0, 0 ),
-        sFunc( "i",           0, 0 ),
-        sFunc( "p",           0, 0 ),
+        sFunc( "mag",           &sDataVec::v_mag,       1 ),
+        sFunc( "magnitude",     &sDataVec::v_mag,       1 ),
+        sFunc( "ph",            &sDataVec::v_ph,        1 ),
+        sFunc( "phase",         &sDataVec::v_ph,        1 ),
+        sFunc( "j",             &sDataVec::v_j,         1 ),
+        sFunc( "real",          &sDataVec::v_real,      1 ),
+        sFunc( "re",            &sDataVec::v_real,      1 ),
+        sFunc( "imag",          &sDataVec::v_imag,      1 ),
+        sFunc( "im",            &sDataVec::v_imag,      1 ),
+        sFunc( "db",            &sDataVec::v_db,        1 ),
+        sFunc( "log10",         &sDataVec::v_log10,     1 ),
+        sFunc( "log",           &sDataVec::v_log,       1 ),
+        sFunc( "ln",            &sDataVec::v_ln,        1 ),
+        sFunc( "exp",           &sDataVec::v_exp,       1 ),
+        sFunc( "abs",           &sDataVec::v_mag,       1 ),
+        sFunc( "sqrt",          &sDataVec::v_sqrt,      1 ),
+        sFunc( "sin",           &sDataVec::v_sin,       1 ),
+        sFunc( "cos",           &sDataVec::v_cos,       1 ),
+        sFunc( "tan",           &sDataVec::v_tan,       1 ),
+        sFunc( "asin",          &sDataVec::v_asin,      1 ),
+        sFunc( "acos",          &sDataVec::v_acos,      1 ),
+        sFunc( "atan",          &sDataVec::v_atan,      1 ),
+        sFunc( "sinh",          &sDataVec::v_sinh,      1 ),
+        sFunc( "cosh",          &sDataVec::v_cosh,      1 ),
+        sFunc( "tanh",          &sDataVec::v_tanh,      1 ),
+        sFunc( "asinh",         &sDataVec::v_asinh,     1 ),
+        sFunc( "acosh",         &sDataVec::v_acosh,     1 ),
+        sFunc( "atanh",         &sDataVec::v_atanh,     1 ),
+        sFunc( "j0",            &sDataVec::v_j0,        1 ),
+        sFunc( "j1",            &sDataVec::v_j1,        1 ),
+        sFunc( "jn",            &sDataVec::v_jn,        1 ),
+        sFunc( "y0",            &sDataVec::v_y0,        1 ),
+        sFunc( "y1",            &sDataVec::v_y1,        1 ),
+        sFunc( "yn",            &sDataVec::v_yn,        1 ),
+        sFunc( "cbrt",          &sDataVec::v_cbrt,      1 ),
+        sFunc( "erf",           &sDataVec::v_erf,       1 ),
+        sFunc( "erfc",          &sDataVec::v_erfc,      1 ),
+        sFunc( "gamma",         &sDataVec::v_gamma,     1 ),
+        sFunc( "norm",          &sDataVec::v_norm,      1 ),
+        sFunc( "fft",           &sDataVec::v_fft,       1 ),
+        sFunc( "ifft",          &sDataVec::v_ifft,      1 ),
+        sFunc( "pos",           &sDataVec::v_pos,       1 ),
+        sFunc( "mean",          &sDataVec::v_mean,      1 ),
+        sFunc( "vector",        &sDataVec::v_vector,    1 ),
+        sFunc( "unitvec",       &sDataVec::v_unitvec,   1 ),
+        sFunc( "length",        &sDataVec::v_size,      1 ),
+        sFunc( "interpolate",   &sDataVec::v_interpolate, 1 ),
+        sFunc( "deriv",         &sDataVec::v_deriv,     1 ),
+        sFunc( "integ",         &sDataVec::v_integ,     1 ),
+        sFunc( "rms",           &sDataVec::v_rms,       1 ),
+        sFunc( "sum",           &sDataVec::v_sum,       1 ),
+        sFunc( "floor",         &sDataVec::v_floor,     1 ),
+        sFunc( "sgn",           &sDataVec::v_sgn,       1 ),
+        sFunc( "ceil",          &sDataVec::v_ceil,      1 ),
+
+        sFunc( "int",           &sDataVec::v_rint,      1 ),
+        sFunc( "v" ),
+        sFunc( "i" ),
+        sFunc( "p"),
 
         // Stat funcs
-        sFunc( "beta",        &sDataVec::v_beta,     1 ),
-        sFunc( "binomial",    &sDataVec::v_binomial, 1 ),
-        sFunc( "chisq",       &sDataVec::v_chisq,    1 ),
-        sFunc( "erlang",      &sDataVec::v_erlang,   1 ),
-        sFunc( "exponential", &sDataVec::v_exponential, 1 ),
-        sFunc( "ogauss",      &sDataVec::v_ogauss,   1 ),
-        sFunc( "poisson",     &sDataVec::v_poisson,  1 ),
-        sFunc( "rnd",         &sDataVec::v_rnd,      1 ),
-        sFunc( "tdist",       &sDataVec::v_tdist,    1 ),
+        sFunc( "beta",          &sDataVec::v_beta,      1 ),
+        sFunc( "binomial",      &sDataVec::v_binomial,  1 ),
+        sFunc( "chisq",         &sDataVec::v_chisq,     1 ),
+        sFunc( "erlang",        &sDataVec::v_erlang,    1 ),
+        sFunc( "exponential",   &sDataVec::v_exponential, 1 ),
+        sFunc( "ogauss",        &sDataVec::v_ogauss,    1 ),
+        sFunc( "poisson",       &sDataVec::v_poisson,   1 ),
+        sFunc( "rnd",           &sDataVec::v_rnd,       1 ),
+        sFunc( "tdist",         &sDataVec::v_tdist,     1 ),
+
+        // Measure system exports
+        sFunc( "mmin",          &sDataVec::v_mmin,      3 ),
+        sFunc( "mmax",          &sDataVec::v_mmax,      3 ),
+        sFunc( "mpp",           &sDataVec::v_mpp,       3 ),
+        sFunc( "mavg",          &sDataVec::v_mavg,      3 ),
+        sFunc( "mrms",          &sDataVec::v_mrms,      3 ),
+        sFunc( "mpw",           &sDataVec::v_mpw,       3 ),
+        sFunc( "mrft",          &sDataVec::v_mrft,      3 ),
 
         // HSPICE funcs
-        sFunc( "unif",        (fuFuncType)&sDataVec::v_hs_unif,   2 ),
-        sFunc( "aunif",       (fuFuncType)&sDataVec::v_hs_aunif,  2 ),
-        sFunc( "gauss",       (fuFuncType)&sDataVec::v_hs_gauss,  3 ),
-        sFunc( "agauss",      (fuFuncType)&sDataVec::v_hs_agauss, 3 ),
-        sFunc( "limit",       (fuFuncType)&sDataVec::v_hs_limit,  2 ),
-        sFunc( "pow",         (fuFuncType)&sDataVec::v_hs_pow,    2 ),
-        sFunc( "pwr",         (fuFuncType)&sDataVec::v_hs_pwr,    2 ),
-        sFunc( "sign",        (fuFuncType)&sDataVec::v_hs_sign,   2 ),
-        sFunc( 0,             0, 0 )
+        sFunc( "unif",          &sDataVec::v_hs_unif,   2 ),
+        sFunc( "aunif",         &sDataVec::v_hs_aunif,  2 ),
+        sFunc( "gauss",         &sDataVec::v_hs_gauss,  3 ),
+        sFunc( "agauss",        &sDataVec::v_hs_agauss, 3 ),
+        sFunc( "limit",         &sDataVec::v_hs_limit,  2 ),
+        sFunc( "pow",           &sDataVec::v_hs_pow,    2 ),
+        sFunc( "pwr",           &sDataVec::v_hs_pwr,    2 ),
+        sFunc( "sign",          &sDataVec::v_hs_sign,   2 ),
+
+        sFunc( 0 )
     };
 
     sHtab *funcname_tab;
@@ -404,7 +415,7 @@ IFsimulator::GetPtree(const char *xsbuf, bool check)
 // are expanding a .param expression.
 //
 pnode *
-IFsimulator::GetPnode(const char **xsptr, bool check, bool param)
+IFsimulator::GetPnode(const char **xsptr, bool check, bool param, bool quiet)
 {
     if (!xsptr || !*xsptr)
         return (0);
@@ -428,9 +439,17 @@ IFsimulator::GetPnode(const char **xsptr, bool check, bool param)
         return (0);
     }
     if (check) {
-        if (!p->checkvalid()) {
-            delete p;
-            return (0);
+        if (quiet) {
+            if (!p->checkvalid_quiet()) {
+                delete p;
+                return (0);
+            }
+        }
+        else {
+            if (!p->checkvalid()) {
+                delete p;
+                return (0);
+            }
         }
         // Can't do this unless the tree is checked!
         p->collapse(&p);
@@ -752,6 +771,80 @@ pnode::checkvalid() const
 }
 
 
+// Silent version.
+//
+bool
+pnode::checkvalid_quiet() const
+{
+    if (pn_string) {
+        if (!pn_value && pn_type == PN_VEC) {
+            sCKT *ckt = Sp.CurCircuit() ? Sp.CurCircuit()->runckt() : 0;
+            sDataVec *d = OP.vecGet(pn_string, ckt);
+            if (!d || (d->length() == 0 && !lstring::eq(d->name(), "list")))
+                return (false);
+        }
+    }
+    else if (pn_func) {
+        if (pn_left && !pn_left->checkvalid())
+            return (false);
+    }
+    else if (pn_op) {
+        if (pn_left && !pn_left->checkvalid())
+            return (false);
+        if (pn_right && !pn_right->checkvalid())
+            return (false);
+    }
+    else
+        return (false);
+    return (true);
+}
+
+
+// Return true is the expression contains numeric values only.
+//
+bool
+pnode::is_constant() const
+{
+    if (pn_string) {
+        if (!is_numeric())
+            return (false);
+    }
+    else if (pn_func) {
+        if (!pn_func->func()) {
+            return (false);
+        }
+        else if (pn_func->func() == &sDataVec::v_undefined) {
+            // Descend into the macros, too.
+            pnode *p = Sp.GetUserFuncTree(pn_func->name(), pn_left);
+            if (p) {
+                bool r = p->is_constant();
+                delete p;
+                if (!r)
+                    return (false);
+            }
+        }
+        if (pn_left) {
+            if (!pn_left->is_constant())
+                return (false);
+        }
+    }
+    else if (pn_op) {
+        if (pn_left) {
+            if (!pn_left->is_constant())
+                return (false);
+        }
+        if (pn_right) {
+            if (!pn_right->is_constant())
+                return (false);
+        }
+    }
+    else {
+        return (false);
+    }
+    return (true);
+}
+
+
 // Special silent tree-checking function.  Return values are
 // 0  No errors.
 // 1  Tree contains vector reference(s).  These are not handled
@@ -765,11 +858,9 @@ pnode::checktree() const
     int ret = 0;
     if (pn_string) {
         if (!pn_value && pn_type == PN_VEC) {
-            // Found a vector reference.
-            // We allow "temper" and names from the constants plot
-            // only.
-            if (!lstring::eq(pn_string, "temper") &&
-                    OP.constants()->find_vec(pn_string)) {
+            // Found a vector reference, we allow any length=1 vector.
+            sDataVec *dv = OP.vecGet(pn_string, 0, true);
+            if (!dv || dv->length() != 1) {
                 if (!ret)
                     ret = 1;
             }
@@ -839,7 +930,7 @@ pnode::collapse(pnode **pp)
     if (pn_func) {
         if (pn_func == ft_uops || pn_func == ft_uops+1) {
             // Unary minus or NOT operator.
-            if (pn_left->is_const()) {
+            if (pn_left->is_numeric()) {
                 sDataVec *v = Sp.Evaluate(this);
                 if (v) {
                     pn_value = v;
@@ -853,16 +944,16 @@ pnode::collapse(pnode **pp)
         }
 
         if (pn_func->func()) {
-            bool doit = !pn_left || pn_left->is_const();
+            bool doit = !pn_left || pn_left->is_numeric();
             if (!doit && pn_left->optype() == TT_COMMA) {
                 pnode *px = pn_left;
                 doit = true;
                 while (px) {
-                    if (!px->pn_left->is_const()) {
+                    if (!px->pn_left->is_numeric()) {
                         doit = false;
                         break;
                     }
-                    if (px->pn_right->is_const())
+                    if (px->pn_right->is_numeric())
                        break;
                     if (px->pn_right->optype() == TT_COMMA) {
                         px = px->pn_right;
@@ -895,7 +986,7 @@ pnode::collapse(pnode **pp)
         if (pn_op->optype() == TT_COLON)
             return;
         if (pn_left && pn_right) {
-            if (pn_left->is_const() && pn_right->is_const()) {
+            if (pn_left->is_numeric() && pn_right->is_numeric()) {
                 sDataVec *v = Sp.Evaluate(this);
                 if (v) {
                     pn_value = v;

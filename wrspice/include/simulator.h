@@ -292,7 +292,7 @@ struct sFtCirc
     void clearDeferred();
     void applyDeferred(sCKT*);
     void alter(const char*, wordlist*);
-    void printAlter(FILE* = 0);
+    void printAlter(FILE* = 0, bool = false);
     static bool devParams(int, wordlist**, wordlist**, bool);
     static void showDevParms(wordlist*, bool, bool);
     static wordlist *devExpand(const char*, bool);
@@ -667,7 +667,7 @@ struct IFsimulator
     FPEmode SetCircuitFPEmode();
 
     // fte/inpcom.cc
-    bool Edit(const char*, void(*)(char*, bool, int), bool, bool*);
+    bool Edit(const char*, bool(*)(const char*, void*, int), bool, bool*);
     void Listing(FILE*, sLine*, sLine*, int);
     FILE *PathOpen(const char*, const char*, bool* = 0);
     char *FullPath(const char*);
@@ -675,7 +675,7 @@ struct IFsimulator
     // fte/parse.cc
     pnlist *GetPtree(wordlist*, bool);
     pnlist *GetPtree(const char*, bool);
-    pnode *GetPnode(const char**, bool, bool = false);
+    pnode *GetPnode(const char**, bool, bool = false, bool = false);
     bool CheckFuncName(const char*);
 
     // fte/resource.cc
@@ -711,7 +711,7 @@ struct IFsimulator
     void SetVar(wordlist*);
     variable *GetRawVar(const char*, sFtCirc* = 0);
     bool GetVar(const char*, VTYPenum, VTvalue*, sFtCirc* = 0);
-    void VarPrint(char**);
+    void VarPrint(sLstr*);
     variable *EnqPlotVar(const char*);
     variable *EnqCircuitVar(const char*);
     variable *EnqVectorVar(const char*, bool = false);
@@ -732,6 +732,16 @@ struct IFsimulator
     const char *Simulator()         { return (ft_simulator); }
     const char *Description()       { return (ft_description); }
     const char *Version()           { return (ft_version); }
+
+    void ControlsPush()             { ft_control_depth++;}
+    void ControlsPop()              { if (ft_control_depth)
+                                          ft_control_depth--; }
+    int ControlsDepth()             { return (ft_control_depth); }
+
+    void ExecsPush()                { ft_exec_depth++;}
+    void ExecsPop()                 { if (ft_exec_depth)
+                                          ft_exec_depth--; }
+    int ExecsDepth()                { return (ft_exec_depth); }
 
     FPEmode GetFPEmode()            { return (ft_fpe_mode); }
 
@@ -787,6 +797,9 @@ private:
     sFtCirc *ft_circuits;       // List head for circuits
 
     IFanalysis *ft_cur_analysis; // The most recent analysis started.
+
+    int ft_control_depth;       // .control execution frame.
+    int ft_exec_depth;          // .exec execution frame.
 
     int ft_fpe_inhibit;         // Longjmp on SIGFPE inhibited when nonzero
 
@@ -853,6 +866,7 @@ namespace ResPrint
     void print_opt(const char*, sLstr*);
     void print_cktvar(const variable*, sLstr*);
     void get_elapsed(double*, double*, double*);
+    void get_faults(unsigned int*, unsigned int*);
     void get_space(unsigned int*, unsigned int*, unsigned int*);
 };
 

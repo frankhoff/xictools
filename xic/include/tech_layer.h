@@ -55,6 +55,10 @@ struct sVia;
 
 enum tRouteDir { tDirNone, tDirHoriz, tDirVert };
 
+// FastHenry defaults
+#define DEF_FH_NHINC    1
+#define DEF_FH_RH       2.0
+
 struct TechLayerParams
 {
     // layers.cc
@@ -76,6 +80,8 @@ struct TechLayerParams
     void set_rho(double d)              { lp_rho = d; }
     double ohms_per_sq()                { return (lp_ohms_per_sq); }
     void set_ohms_per_sq(double d)      { lp_ohms_per_sq = d; }
+    double tau()                        { return (lp_tau); }
+    void set_tau(double d)              { lp_tau = d; }
 
     double epsrel()                     { return (lp_epsrel); }
     void set_epsrel(double d)           { lp_epsrel = d; }
@@ -93,6 +99,11 @@ struct TechLayerParams
     void set_diel_thick(double d)       { lp_diel_thick = d; }
     double diel_const()                 { return (lp_diel_const); }
     void set_diel_const(double d)       { lp_diel_const = d; }
+
+    int fh_nhinc()                      { return (lp_fh_nhinc); }
+    void set_fh_nhinc(int n)            { lp_fh_nhinc = n; }
+    double fh_rh()                      { return (lp_fh_rh); }
+    void set_fh_rh(double d)            { lp_fh_rh = d; }
 
     double ant_ratio()                  { return (lp_ant_ratio); }
     void set_ant_ratio(double d)        { lp_ant_ratio = d; }
@@ -124,24 +135,29 @@ private:
     sVia *lp_vialist;                   // via list
 
     // Resistance parameters (Extract).
-    float lp_rho;                       // resistivity, ohm-meter
-    float lp_ohms_per_sq;
+    double lp_rho;                      // resistivity, ohm-meter
+    double lp_ohms_per_sq;              // sheet resistance
+    double lp_tau;                      // Drude model relaxation time
 
     // Capacitance parameters (Extract).
-    float lp_epsrel;                    // relative permititivity
-    float lp_cap_per_area;              // pF per sq micron
-    float lp_cap_per_perim;             // pF per micron
+    double lp_epsrel;                   // relative permititivity
+    double lp_cap_per_area;             // pF per sq micron
+    double lp_cap_per_perim;            // pF per micron
 
     // Superconducting penetration depth (Extract).
-    float lp_lambda;                    // London penetration depth, microns
+    double lp_lambda;                   // London penetration depth, microns
 
     // Transmission line (Extract).
     char *lp_gp_lname;                  // ground plane layer name
-    float lp_diel_thick;                // assumed dielectric thickness
-    float lp_diel_const;                // assumed rel. dielectric const.
+    double lp_diel_thick;               // assumed dielectric thickness
+    double lp_diel_const;               // assumed rel. dielectric const.
+
+    // FastHenry interface (Extract).
+    int lp_fh_nhinc;                    // FastHenry filaments
+    double lp_fh_rh;                    // FastHenry filament height ratio
 
     // Misc. (Extract).
-    float lp_ant_ratio;                 // antenna ratio
+    double lp_ant_ratio;                // antenna ratio
 
     // Routing info.
     tRouteDir lp_route_dir;             // route direction

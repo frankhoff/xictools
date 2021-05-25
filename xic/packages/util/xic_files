@@ -27,7 +27,7 @@ mosamp \
 netcgdtest.scr \
 preferences.scr \
 README \
-rsfq_lib.tar.gz \
+rsfq_lib-030720.tar.gz \
 spiral1.scr \
 tkdemo.tk \
 tut11a.gds \
@@ -328,6 +328,7 @@ wr_install \
 xic_format_lib \
 xic_mesg \
 xic_stipples \
+xic_tech.c4s1 \
 xic_tech.cni \
 xic_tech.hyp \
 xic_tech.n65 \

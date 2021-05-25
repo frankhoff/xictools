@@ -147,7 +147,7 @@ GTKedit::GTKedit(bool nogr)
             GTK_SIGNAL_FUNC(pe_r_menu_proc), this);
     }
     pe_r_button = gtk_button_new_with_label("R");
-    gtk_widget_set_usize(pe_r_button, -1, 20);
+    gtk_widget_set_size_request(pe_r_button, -1, 20);
     gtk_widget_hide(pe_r_button);
     gtk_widget_set_name(pe_r_button, "Recall");
     GtkTooltips *tt = gtk_NewTooltip();
@@ -170,7 +170,7 @@ GTKedit::GTKedit(bool nogr)
             GTK_SIGNAL_FUNC(pe_s_menu_proc), this);
     }
     pe_s_button = gtk_button_new_with_label("S");
-    gtk_widget_set_usize(pe_s_button, -1, 20);
+    gtk_widget_set_size_request(pe_s_button, -1, 20);
     gtk_widget_hide(pe_s_button);
     gtk_widget_set_name(pe_s_button, "Save");
     tt = gtk_NewTooltip();
@@ -182,7 +182,7 @@ GTKedit::GTKedit(bool nogr)
 
     // L (long text) button
     pe_l_button = gtk_button_new_with_label("L");
-    gtk_widget_set_usize(pe_l_button, -1, 20);
+    gtk_widget_set_size_request(pe_l_button, -1, 20);
     gtk_widget_hide(pe_l_button);
     gtk_widget_set_name(pe_l_button, "LongText");
     tt = gtk_NewTooltip();
@@ -259,7 +259,7 @@ GTKedit::GTKedit(bool nogr)
     a.x = 0;
     a.y = 0;
     gtk_widget_size_allocate(pe_keys, &a);
-    gtk_drawing_area_size(GTK_DRAWING_AREA(gd_viewport), prm_wid, height);
+    gtk_widget_set_size_request(gd_viewport, prm_wid, height);
 }
 
 
@@ -850,7 +850,7 @@ GTKedit::pe_selection_proc(GtkWidget*, GtkSelectionData *sdata, guint, void*)
         GtkWidget *widget;
         gdk_window_get_user_data(wnd, (void**)&widget);
         if (widget) {
-            int code = (long)gtk_object_get_data(GTK_OBJECT(widget),
+            int code = (intptr_t)gtk_object_get_data(GTK_OBJECT(widget),
                 "hyexport");
             if (code) {
                 int start = GTK_OLD_EDITABLE(widget)->selection_start_pos;
@@ -858,7 +858,7 @@ GTKedit::pe_selection_proc(GtkWidget*, GtkSelectionData *sdata, guint, void*)
                 // Property Info pop-up, fetch the original
                 // hypertext to insert.
                 CDo *odesc;
-                Ptxt *p = EditIf()->PropertyResolve(code, start, &odesc);
+                PrptyText *p = EditIf()->PropertyResolve(code, start, &odesc);
                 if (p && p->prpty()) {
                     CDs *cursd = CurCell(true);
                     if (cursd)
@@ -897,8 +897,7 @@ GTKedit::pe_font_change_hdlr(GtkWidget*, void*, void*)
             int ht = fh + 4;
             if (ht < r.height)
                 ht = r.height;
-            gtk_drawing_area_size(GTK_DRAWING_AREA(ptr()->gd_viewport), -1,
-                ht);
+            gtk_widget_set_size_request(ptr()->gd_viewport, -1, ht);
         }
         ptr()->init();
     }

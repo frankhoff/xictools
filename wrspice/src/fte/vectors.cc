@@ -598,17 +598,32 @@ IFoutput::vecGet(const char *word, const sCKT *ckt, bool silent)
             }
             if (err) {
                 if (lstring::eq(name+1, kw_elapsed)) {
-                    double d1, d2, d3;
-                    ResPrint::get_elapsed(&d1, &d2, &d3);
+                    double d1;
+                    ResPrint::get_elapsed(&d1, 0, 0);
                     data.type = IF_REAL;
                     data.v.rValue = d1;
                     err = 0;
                 }
-                else if (lstring::eq(name+1, kw_space)) {
-                    unsigned int d1, d2, d3;
-                    ResPrint::get_space(&d1, &d2, &d3);
+                else if (lstring::eq(name+1, kw_faults)) {
+                    unsigned int d1;
+                    ResPrint::get_faults(&d1, 0);
                     data.type = IF_INTEGER;
                     data.v.iValue = d1;
+                    err = 0;
+                }
+                else if (lstring::eq(name+1, kw_space)) {
+                    unsigned int d1;
+                    ResPrint::get_space(&d1, 0, 0);
+                    data.type = IF_INTEGER;
+                    data.v.iValue = d1;
+                    err = 0;
+                }
+                else if (lstring::eq(name+1, kw_totaltime)) {
+                    // same as elapsed
+                    double d1;
+                    ResPrint::get_elapsed(&d1, 0, 0);
+                    data.type = IF_REAL;
+                    data.v.rValue = d1;
                     err = 0;
                 }
             }
@@ -737,6 +752,14 @@ IFoutput::vecGet(const char *word, const sCKT *ckt, bool silent)
                 return (0);
             d->set_realval(0, r);
         }
+    }
+    else if (dtype == IF_STRING) {
+        // Sort of a hack, use the datavec to pass back a string.
+        d->set_length(1);
+        d->set_realvec(new double[1]);
+        d->set_realval(0, 0.0);
+        d->set_defcolor(data.v.sValue);
+        d->set_flags(d->flags() | VF_STRING);
     }
     else {
         if (!silent)
@@ -1331,7 +1354,7 @@ IFoutput::vecEq(sDataVec *v1, sDataVec *v2)
 // otherwise it is printed to standard output.
 //
 void
-IFoutput::vecPrintList(wordlist *wl, char **retstr)
+IFoutput::vecPrintList(wordlist *wl, sLstr *plstr)
 {
     char buf[BSIZE_SP];
     while (wl) {
@@ -1345,10 +1368,10 @@ IFoutput::vecPrintList(wordlist *wl, char **retstr)
         else {
             if (d->link()) {
                 for (sDvList *dl = d->link(); dl; dl = dl->dl_next)
-                    dl->dl_dvec->print(retstr);
+                    dl->dl_dvec->print(plstr);
             }
             else
-                d->print(retstr);
+                d->print(plstr);
         }
         if (wl->wl_next == 0)
             return;
@@ -1360,12 +1383,12 @@ IFoutput::vecPrintList(wordlist *wl, char **retstr)
     }
 
     wordlist *tl0 = curPlot()->list_perm_vecs();
-    if (!retstr)
+    if (!plstr)
         TTY.init_more();
     if (!tl0) {
         const char *s = "There are no vectors currently active.\n";
-        if (retstr)
-            *retstr = lstring::build_str(*retstr, s);
+        if (plstr)
+            plstr->add(s);
         else
             TTY.printf(s);
         return;
@@ -1375,8 +1398,8 @@ IFoutput::vecPrintList(wordlist *wl, char **retstr)
     sprintf(buf, "Title: %s\n",  curPlot()->title());
     sprintf(buf + strlen(buf), "Name: %s (%s)\nDate: %s\n\n", 
         curPlot()->type_name(), curPlot()->name(), curPlot()->date());
-    if (retstr)
-        *retstr = lstring::build_str(*retstr, buf);
+    if (plstr)
+        plstr->add(buf);
     else
         TTY.send(buf);
 
@@ -1384,21 +1407,21 @@ IFoutput::vecPrintList(wordlist *wl, char **retstr)
     if (!curPlot()->scale()) {
         for (wordlist *tl = tl0; tl; tl = tl->wl_next) {
             sDataVec *d = curPlot()->get_perm_vec(tl->wl_word);
-            d->print(retstr);
+            d->print(plstr);
         }
     }
     else {
         for (wordlist *tl = tl0; tl; tl = tl->wl_next) {
             if (lstring::eq(tl->wl_word, curPlot()->scale()->name())) {
                 sDataVec *d = curPlot()->get_perm_vec(tl->wl_word);
-                d->print(retstr);
+                d->print(plstr);
                 break;
             }
         }
         for (wordlist *tl = tl0; tl; tl = tl->wl_next) {
             if (!lstring::eq(tl->wl_word, curPlot()->scale()->name())) {
                 sDataVec *d = curPlot()->get_perm_vec(tl->wl_word);
-                d->print(retstr);
+                d->print(plstr);
             }
         }
     }

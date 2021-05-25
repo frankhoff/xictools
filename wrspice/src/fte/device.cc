@@ -45,6 +45,11 @@ Authors: 1986 Wayne A. Christopher
          1992 Stephen R. Whiteley
 ****************************************************************************/
 
+// Needed to expose vasprintf prototype in stdio.h.
+#ifdef WIN32
+#define _GNU_SOURCE
+#endif
+
 #include "config.h"
 #include "simulator.h"
 #include "parser.h"
@@ -68,7 +73,6 @@ Authors: 1986 Wayne A. Christopher
 #include <dirent.h>
 #ifdef WIN32
 #include <windows.h>
-#include <libiberty.h>  // provides vasprintf
 #else
 #include <dlfcn.h>
 #endif
@@ -771,7 +775,7 @@ CommandTab::com_alter(wordlist *wl)
     }
 
     if (!devs && !parms) {
-        Sp.CurCircuit()->printAlter();
+        Sp.CurCircuit()->printAlter(0, true);
         return;
     }
     if (!devs) {
@@ -934,7 +938,7 @@ IFsimulator::LoadModules(const char *str)
 
 #ifdef WIN32
             HINSTANCE handle = LoadLibrary(path);
-            if ((unsigned long)handle <= HINSTANCE_ERROR) {
+            if ((intptr_t)handle <= HINSTANCE_ERROR) {
                 GRpkgIf()->ErrPrintf(ET_ERROR,
                 "failed to dynamically load %s.\n", lstring::strip_path(path));
                 delete [] path;
@@ -995,7 +999,7 @@ IFsimulator::LoadModules(const char *str)
             strcat(buf, "_c");
 
 #ifdef WIN32
-            NewDevFunc f = (NewDevFunc)GetProcAddress(handle, buf);
+            NewDevFunc f = (NewDevFunc)(void*)GetProcAddress(handle, buf);
 #else
             // Should use dlfunc here, but Apple doesn't have it!
             NewDevFunc f = (NewDevFunc)dlsym(handle, buf);
@@ -1971,20 +1975,80 @@ sFtCirc::alter(const char *dname, wordlist *dparams)
 }
 
 
+namespace {
+    int get_dfrd_val(sCKT *ckt, dfrdlist *dl, IFdata *data)
+    {
+        int err = 0;
+        if (!ckt)
+            err = E_NOCKT;
+        else if (!dl || !data)
+            err = E_BADPARM;
+        else
+            err = ckt->getParam(dl->dname, dl->param, data, 0);
+        if (err) {
+            const char *msg = Sp.ErrorShort(err);
+            GRpkgIf()->ErrPrintf(ET_ERROR, "could not get @%s[%s]: %s.\n",
+                dl->dname, dl->param, msg);
+            return (err);
+        }
+        return (OK);
+    }
+}
+
+
 void
-sFtCirc::printAlter(FILE *fp)
+sFtCirc::printAlter(FILE *fp, bool inval)
 {
+    if (inval) {
+        // Print the given RHS as a string.
+        if (fp) {
+            for (dfrdlist *dl = ci_deferred; dl; dl = dl->next)
+                fprintf(fp, "%-16s %-16s %s\n", dl->dname, dl->param, dl->rhs);
+            for (dfrdlist *dl = ci_trial_deferred; dl; dl = dl->next)
+                fprintf(fp, "%-16s %-16s %s\n", dl->dname, dl->param, dl->rhs);
+        }
+        else {
+            for (dfrdlist *dl = ci_deferred; dl; dl = dl->next)
+                TTY.printf("%-16s %-16s %s\n", dl->dname, dl->param, dl->rhs);
+            for (dfrdlist *dl = ci_trial_deferred; dl; dl = dl->next)
+                TTY.printf("%-16s %-16s %s\n", dl->dname, dl->param, dl->rhs);
+        }
+        return;
+    }
+
+    IFdata data;
+    sCKT *ckt = runckt();
+
+    // Query the current value of the parameter.
     if (fp) {
-        for (dfrdlist *dl = ci_deferred; dl; dl = dl->next)
-            fprintf(fp, "%-16s %-16s %s\n", dl->dname, dl->param, dl->rhs);
-        for (dfrdlist *dl = ci_trial_deferred; dl; dl = dl->next)
-            fprintf(fp, "%-16s %-16s %s\n", dl->dname, dl->param, dl->rhs);
+        for (dfrdlist *dl = ci_deferred; dl; dl = dl->next) {
+            int ret = get_dfrd_val(ckt, dl, &data);
+            if (ret == OK && (data.type & IF_VARTYPES) == IF_REAL) {
+                fprintf(fp, "%-16s %-16s %.12e\n", dl->dname, dl->param,
+                    data.v.rValue);
+            }
+            else if (ret == OK && (data.type & IF_VARTYPES) == IF_INTEGER) {
+                fprintf(fp, "%-16s %-16s %d\n", dl->dname, dl->param,
+                    data.v.iValue);
+            }
+            else
+                fprintf(fp, "%-16s %-16s 0.0\n", dl->dname, dl->param);
+        }
     }
     else {
-        for (dfrdlist *dl = ci_deferred; dl; dl = dl->next)
-            TTY.printf("%-16s %-16s %s\n", dl->dname, dl->param, dl->rhs);
-        for (dfrdlist *dl = ci_trial_deferred; dl; dl = dl->next)
-            TTY.printf("%-16s %-16s %s\n", dl->dname, dl->param, dl->rhs);
+        for (dfrdlist *dl = ci_deferred; dl; dl = dl->next) {
+            int ret = get_dfrd_val(ckt, dl, &data);
+            if (ret == OK && (data.type & IF_VARTYPES) == IF_REAL) {
+                fprintf(fp, "%-16s %-16s %.12e\n", dl->dname, dl->param,
+                    data.v.rValue);
+            }
+            else if (ret == OK && (data.type & IF_VARTYPES) == IF_INTEGER) {
+                fprintf(fp, "%-16s %-16s %d\n", dl->dname, dl->param,
+                    data.v.iValue);
+            }
+            else
+                fprintf(fp, "%-16s %-16s 0.0\n", dl->dname, dl->param);
+        }
     }
 }
 // End of sFtCirc functions.

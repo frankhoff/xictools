@@ -425,7 +425,7 @@ sFc::sFc(GRobject c)
 
     GtkWidget *sb = sb_fc_plane_bloat.init(FC_PLANE_BLOAT_DEF,
         FC_PLANE_BLOAT_MIN, FC_PLANE_BLOAT_MAX, ndgt);
-    gtk_widget_set_usize(sb, 100, -1);
+    gtk_widget_set_size_request(sb, 100, -1);
     sb_fc_plane_bloat.connect_changed(GTK_SIGNAL_FUNC(fc_change_proc),
         (void*)FcPlaneBloat, "FcPlaneBloat");
     frame = gtk_frame_new("FcPlaneBloat");
@@ -438,7 +438,7 @@ sFc::sFc(GRobject c)
 
     sb = sb_substrate_thickness.init(SUBSTRATE_THICKNESS,
         SUBSTRATE_THICKNESS_MIN, SUBSTRATE_THICKNESS_MAX, ndgt);
-    gtk_widget_set_usize(sb, 100, -1);
+    gtk_widget_set_size_request(sb, 100, -1);
     sb_substrate_thickness.connect_changed(GTK_SIGNAL_FUNC(fc_change_proc),
         (void*)SubstrateThickness, "SubstrateThickness");
     frame = gtk_frame_new("SubstrateThickness");
@@ -477,7 +477,7 @@ sFc::sFc(GRobject c)
 
     sb = sb_substrate_eps.init(SUBSTRATE_EPS, SUBSTRATE_EPS_MIN,
         SUBSTRATE_EPS_MAX, 3);
-    gtk_widget_set_usize(sb, 100, -1);
+    gtk_widget_set_size_request(sb, 100, -1);
     sb_substrate_eps.connect_changed(GTK_SIGNAL_FUNC(fc_change_proc),
         (void*)SubstrateEps, "SubstrateEps");
     frame = gtk_frame_new("SubstrateEps");
@@ -522,7 +522,7 @@ sFc::sFc(GRobject c)
 
     sb = sb_fc_panel_target.init(FC_DEF_TARG_PANELS, FC_MIN_TARG_PANELS,
         FC_MAX_TARG_PANELS, 1);
-    gtk_widget_set_usize(sb, 100, -1);
+    gtk_widget_set_size_request(sb, 100, -1);
     sb_fc_panel_target.connect_changed(GTK_SIGNAL_FUNC(fc_change_proc),
         (void*)FcPanelTarget, "FcPanelTarget");
     frame = gtk_frame_new("FcPanelTarget");
@@ -751,7 +751,7 @@ sFc::sFc(GRobject c)
 #endif
         NULL);
 
-    gtk_widget_set_usize(fc_jobs, 200, 200);
+    gtk_widget_set_size_request(fc_jobs, 200, 200);
 
     gtk_table_attach(GTK_TABLE(table), contr, 1, 2, row, row+1,
         (GtkAttachOptions)(GTK_EXPAND | GTK_FILL | GTK_SHRINK),
@@ -1155,7 +1155,7 @@ sFc::fc_change_proc(GtkWidget *widget, void *arg)
     const char *s = gtk_entry_get_text(GTK_ENTRY(widget));
     if (!s)
         return;
-    int id = (long)arg;
+    int id = (intptr_t)arg;
     switch (id) {
     case FcPath:
         if (!strcmp(s, fc_def_string(id)))
@@ -1233,7 +1233,7 @@ sFc::fc_p_cb(bool ok, void *arg)
 void
 sFc::fc_dump_cb(const char *fname, void *client_data)
 {
-    switch ((long)client_data) {
+    switch ((intptr_t)client_data) {
     case FcDump:
         if (FC()->fcDump(fname)) {
             if (!Fc)
@@ -1257,7 +1257,7 @@ sFc::fc_btn_proc(GtkWidget *widget, void *arg)
 {
     if (!Fc)
         return;
-    switch ((long)arg) {
+    switch ((intptr_t)arg) {
     case FcRun:
         FC()->fcRun(0, 0, 0);
         break;

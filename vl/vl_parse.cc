@@ -44,36 +44,53 @@
 #include "vl_defs.h"
 #include "vl_types.h"
 
-vl_parser VP;
 extern void yyrestart(FILE*);
 
 //---------------------------------------------------------------------------
 //  Parser objects
 //---------------------------------------------------------------------------
 
+vl_parser *vl_parser::p_parser = 0;
+
 vl_parser::vl_parser()
 {
-    tunit = tprec = 1.0;
-    filename = vl_strdup("<stdin>");
-    module_stack = new vl_stack_t<vl_module*>;
-    file_stack = new vl_stack_t<FILE*>;
-    fname_stack = new vl_stack_t<char*>;
-    lineno_stack = new vl_stack_t<int>;
-    dir_stack = new vl_stack_t<char*>;
-    macros = new table<char*>;
-    no_go = false;
-    verbose = false;
+    if (p_parser) {
+        fprintf(stderr, "Singleton vl_parser is already instantiated.\n");
+        exit(1);
+    }
+    p_parser = this;
+
+    p_tunit = 1.0;
+    p_tprec = 1.0;
+    p_filename = vl_strdup("<stdin>");
+    p_module_stack = new vl_stack_t<vl_module*>;
+    p_file_stack = new vl_stack_t<FILE*>;
+    p_fname_stack = new vl_stack_t<const char*>;
+    p_lineno_stack = new vl_stack_t<int>;
+    p_dir_stack = new vl_stack_t<const char*>;
+    p_macros = new table<const char*>;
+    p_no_go = false;
+    p_verbose = false;
+}
+
+
+void
+vl_parser::on_null_ptr()
+{
+    fprintf(stderr, "Singleton vl_parser used before instantiated.\n");
+    exit(1);
 }
 
 
 vl_parser::~vl_parser()
 {
-    delete module_stack;
-    delete file_stack;
-    delete fname_stack;
-    delete lineno_stack;
-    delete dir_stack;
-    delete macros;
+    delete p_module_stack;
+    delete p_file_stack;
+    delete p_fname_stack;
+    delete p_lineno_stack;
+    delete p_dir_stack;
+    delete p_macros;
+    p_parser = 0;
 }
 
 
@@ -82,25 +99,25 @@ vl_parser::parse(int ac, char **av)
 {
     clear();
     int i;
-    if (setjmp(jbuf) == 1) {
-        no_go = true;
+    if (setjmp(p_jbuf) == 1) {
+        p_no_go = true;
         fclose(yyin);
         return (true);
     }
     for (i = 1; i < ac; i++) {
         if (av[i][0] == '-') {
             if (av[i][1] == 'v' && !av[i][2])
-                verbose = true;
+                p_verbose = true;
             continue;
         }
 
-        filename = vl_strdup(av[i]);
-        yyin = vl_file_open(filename, "r");
+        p_filename = vl_strdup(av[i]);
+        yyin = vl_file_open(p_filename, "r");
         if (!yyin)
-            yyin = fopen(filename, "r");
-        cout << filename << '\n';
+            yyin = fopen(p_filename, "r");
+        cout << p_filename << '\n';
         if (!yyin) {
-            cerr << "failed to open file " << filename << '\n';
+            cerr << "failed to open file " << p_filename << '\n';
             return (true);
         }
         if (yyparse()) {
@@ -109,7 +126,7 @@ vl_parser::parse(int ac, char **av)
         }
         fclose(yyin);
     }
-    return (no_go);
+    return (p_no_go);
 }
 
 
@@ -118,37 +135,38 @@ vl_parser::parse(FILE *fp)
 {
     clear();
     yyin = fp;
-    if (setjmp(jbuf) == 1) {
-        no_go = true;
+    if (setjmp(p_jbuf) == 1) {
+        p_no_go = true;
         return (true);
     }
     yyrestart(yyin);
     if (yyparse())
         return (true);
-    return (no_go);
+    return (p_no_go);
 }
 
 
 void
 vl_parser::clear()
 {
-    filename = vl_strdup("<stdin>");
-    delete module_stack;
-    module_stack = new vl_stack_t<vl_module*>;
-    delete file_stack;
-    file_stack = new vl_stack_t<FILE*>;
-    delete fname_stack;
-    fname_stack = new vl_stack_t<char*>;
-    delete lineno_stack;
-    lineno_stack = new vl_stack_t<int>;
-    delete macros;
-    macros = new table<char*>;
+    p_filename = vl_strdup("<stdin>");
+    delete p_module_stack;
+    p_module_stack = new vl_stack_t<vl_module*>;
+    delete p_file_stack;
+    p_file_stack = new vl_stack_t<FILE*>;
+    delete p_fname_stack;
+    p_fname_stack = new vl_stack_t<const char*>;
+    delete p_lineno_stack;
+    p_lineno_stack = new vl_stack_t<int>;
+    delete p_macros;
+    p_macros = new table<const char*>;
 
-    description = 0;
-    context = 0;
-    tunit = tprec = 1.0;
+    p_description = 0;
+    p_context = 0;
+    p_tunit = 1.0;
+    p_tprec = 1.0;
 
-    no_go = false;
+    p_no_go = false;
 }
 
 
@@ -181,7 +199,7 @@ vl_parser::error(vlERRtype err, const char *fmt, ...)
         vl_error("(internal) %s", buf);
         break;
     }
-    no_go = true;
+    p_no_go = true;
 }
 
 
@@ -274,44 +292,96 @@ vl_parser::parse_timescale(const char *str)
 
     if (t2 > t1)
         return (false);
-    if (t2 < description->tstep)
-        description->tstep = t2;
-    tunit = t1;
-    tprec = t2;
+    if (t2 < p_description->tstep())
+        p_description->set_tstep(t2);
+    p_tunit = t1;
+    p_tprec = t2;
     return (true);
+}
+
+
+void
+vl_parser::push_context(vl_module *m)
+{
+    p_context = new vl_context(p_context);
+    if (m->type() == ModDecl)
+        p_context->set_module(m);
+    else {
+        vl_error("internal, bad object type %d (not module)", m->type());
+        abort();
+    }
+}
+
+
+void
+vl_parser::push_context(vl_primitive *p)
+{
+    p_context = new vl_context(p_context);
+    if (p->type() == CombPrimDecl || p->type() == SeqPrimDecl)
+        p_context->set_primitive(p);
+    else {
+        vl_error("internal, bad object type %d (not primitive)", p->type());
+        abort();
+    }
+}
+
+
+void
+vl_parser::push_context(vl_function *f)
+{
+    p_context = new vl_context(p_context);
+    if (f->type() >= IntFuncDecl && f->type() <= RangeFuncDecl)
+        p_context->set_function(f);
+    else {
+        vl_error("internal, bad object type %d (not function)", f->type());
+        abort();
+    }
+}
+
+
+void
+vl_parser::pop_context()
+{
+    if (p_context) {
+        vl_context *cx = p_context;
+        p_context = cx->parent();
+        delete cx;
+    }
 }
 // End of vl_parser functions
 
 
-static char *
-utol(char *str)
-{
-    for (char *cp = str; *cp!='\0'; cp++)
-        if (isupper(*cp)) *cp = tolower(*cp);
-    return (str);
+namespace {
+    char *utol(char *str)
+    {
+        for (char *cp = str; *cp!='\0'; cp++) {
+            if (isupper(*cp))
+                *cp = tolower(*cp);
+        }
+        return (str);
+    }
+
+
+    const char *hexnum[16] = {
+        "0000","0001","0010","0011",
+        "0100","0101","0110","0111",
+        "1000","1001","1010","1011",
+        "1100","1101","1110","1111"
+    };
 }
 
 
-static const char *hexnum[16] = {
-    "0000","0001","0010","0011",
-    "0100","0101","0110","0111",
-    "1000","1001","1010","1011",
-    "1100","1101","1110","1111"
-};
-
-
 void
-bitexp_parse::bin(char *instr)
+vl_bitexp_parse::bin(char *instr)
 {
-    bits.size = atoi(instr);
-    if (bits.size == 0 || bits.size > MAXBITNUM)
-        bits.size = MAXBITNUM;
-    bits.lo_index = 0;
-    bits.hi_index = bits.size - 1;
-    char *firstcp = strpbrk(instr, "bB")+1;
-    char *cp = instr + strlen(instr) - 1;
+    int size = atoi(instr);
+    if (size == 0 || size > MAXBITNUM)
+        size = MAXBITNUM;
+    bits().set(size);
+    const char *firstcp = strpbrk(instr, "bB")+1;
+    const char *cp = instr + strlen(instr) - 1;
     int bpos = 0;
-    while (bpos < bits.size && cp >= firstcp) {
+    while (bpos < bits().size() && cp >= firstcp) {
         if (*cp != '_' && *cp != ' ') {
             switch (*cp) {
             case '0':
@@ -334,7 +404,7 @@ bitexp_parse::bin(char *instr)
         }
         cp--;
     }
-    for (; bpos < bits.size; bpos++)
+    for (; bpos < bits().size(); bpos++)
         if (*firstcp == 'x')
             brep[bpos] = BitDC;
         else if (*firstcp == 'z' || *firstcp == '?')
@@ -345,38 +415,38 @@ bitexp_parse::bin(char *instr)
 
 
 void
-bitexp_parse::dec(char *instr)
+vl_bitexp_parse::dec(char *instr)
 {
     utol(instr);
-    bits.size = atoi(instr);
-    if (bits.size == 0 || bits.size > MAXBITNUM)
-        bits.size = MAXBITNUM;
-    char *firstcp = strpbrk(instr, "dD")+1;
+    int size = atoi(instr);
+    if (size == 0 || size > MAXBITNUM)
+        size = MAXBITNUM;
+    bits().set(size);
+    const char *firstcp = strpbrk(instr, "dD")+1;
     while (isspace(*firstcp))
         firstcp++;
     int num = atoi(firstcp); // don't put x, z, ? in decimal string
     char buf[MAXSTRLEN];
-    sprintf(buf, "%d'h%x", bits.size, num);
+    sprintf(buf, "%d'h%x", bits().size(), num);
     hex(buf);
 }
 
 
 void
-bitexp_parse::oct(char *instr)
+vl_bitexp_parse::oct(char *instr)
 {
     utol(instr);
-    bits.size = atoi(instr);
-    if (bits.size == 0 || bits.size > MAXBITNUM)
-        bits.size = MAXBITNUM;
-    bits.lo_index = 0;
-    bits.hi_index = bits.size - 1;
-    char *firstcp = strpbrk(instr, "oO")+1;
-    char *cp = instr + strlen(instr) - 1;
+    int size = atoi(instr);
+    if (size == 0 || size > MAXBITNUM)
+        size = MAXBITNUM;
+    bits().set(size);
+    const char *firstcp = strpbrk(instr, "oO")+1;
+    const char *cp = instr + strlen(instr) - 1;
     int bpos = 0;
-    while (bpos < bits.size && cp >= firstcp) {
+    while (bpos < bits().size() && cp >= firstcp) {
         if (*cp != '_' && !isspace(*cp)) {
             for (int i = 0; i < 3; i++) {
-                if (bpos < bits.size) {
+                if (bpos < bits().size()) {
                     if (*cp == 'x')
                         brep[bpos++] = BitDC;
                     else if (*cp == 'z' || *cp == '?')
@@ -389,7 +459,7 @@ bitexp_parse::oct(char *instr)
         }
         cp--;
     }
-    for (; bpos < bits.size; bpos++)
+    for (; bpos < bits().size(); bpos++)
         if (*firstcp == 'x')
             brep[bpos] = BitDC;
         else if (*firstcp == 'z' || *firstcp == '?')
@@ -400,21 +470,20 @@ bitexp_parse::oct(char *instr)
 
 
 void
-bitexp_parse::hex(char *instr)
+vl_bitexp_parse::hex(char *instr)
 {
     utol(instr);
-    bits.size = atoi(instr);
-    if (bits.size == 0 || bits.size > MAXBITNUM)
-        bits.size = MAXBITNUM;
-    bits.lo_index = 0;
-    bits.hi_index = bits.size - 1;
-    char *firstcp = strpbrk(instr, "hH")+1;
-    char *cp = instr + strlen(instr) - 1;
+    int size = atoi(instr);
+    if (size == 0 || size > MAXBITNUM)
+        size = MAXBITNUM;
+    bits().set(size);
+    const char *firstcp = strpbrk(instr, "hH")+1;
+    const char *cp = instr + strlen(instr) - 1;
     int bpos = 0;
-    while (bpos < bits.size && cp >= firstcp) {
+    while (bpos < bits().size() && cp >= firstcp) {
         if (*cp != '_' && !isspace(*cp)) {
             for (int i = 0; i < 4; i++) {
-                if (bpos < bits.size) {
+                if (bpos < bits().size()) {
                     if (*cp == 'x')
                         brep[bpos++] = BitDC;
                     else if (*cp == 'z' || *cp == '?')
@@ -430,7 +499,7 @@ bitexp_parse::hex(char *instr)
         }
         cp--;
     }
-    for (; bpos < bits.size; bpos++)
+    for (; bpos < bits().size(); bpos++)
         if (*firstcp == 'x')
             brep[bpos] = BitDC;
         else if (*firstcp == 'z' || *firstcp == '?')
@@ -438,5 +507,5 @@ bitexp_parse::hex(char *instr)
         else
             brep[bpos] = BitL;
 }
-// End of bitexp_parse functions
+// End of vl_bitexp_parse functions.
 

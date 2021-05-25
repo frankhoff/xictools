@@ -41,6 +41,18 @@
 #ifndef GRIP_H
 #define GRIP_H
 
+ // Ciranova Location enum.
+enum cnLocation {
+    CN_LL,  // lower_left
+    CN_CL,  // center left
+    CN_UL,  // upper_left
+    CN_LC,  // lower_center
+    CN_CC,  // center_center
+    CN_UC,  // upper_center
+    CN_LR,  // lower_right
+    CN_CR,  // center_right
+    CN_UR   // upper_right
+};
 
 // This struct holds parameters obtained from parsing a Ciranova
 // stretch handle property.  We will follow this methodology in Xic. 
@@ -63,6 +75,7 @@ struct sCniGripDesc
         }
 
     const char *param_name()    const { return (gd_param); }
+    bool vert()                 const { return (gd_vert); }
 
     void setgd(const sCniGripDesc &gd)
         {
@@ -86,7 +99,7 @@ protected:
     double gd_maxval;       // Parameter maximum value.
     double gd_scale;        // Scale factgor for parameter value.
     double gd_snap;         // Snap grid for parameter value.
-    int gd_loc;             // Object active edge: 0-3 for LBRT.
+    cnLocation gd_loc;      // Object active edge/ grip location.
     bool gd_absolute;       // True if increment measured with absolute
                             // coordinates, otherwise increment is
                             // meaasured relative to object center.
@@ -125,6 +138,8 @@ struct sGrip : public sCniGripDesc
     int end1y()                 const { return (g_y1); }
     int end2x()                 const { return (g_x2); }
     int end2y()                 const { return (g_y2); }
+    int ux()                    const { return (g_ux); }
+    int uy()                    const { return (g_uy); }
     bool active()               const { return (g_active); }
 
 private:
@@ -132,10 +147,12 @@ private:
     CDc *g_cdesc;               // PCell instance pointer.
     const PConstraint *g_constr;// Pointer to parameter constraint.
     int g_id;                   // Unique id for this grip.
-    int g_x1;                   // These define the grip line segment,
-    int g_y1;                   // motion is constrained to be perpendicular
-    int g_x2;                   // to the segment.
+    int g_x1;                   // These define the grip: either a
+    int g_y1;                   // line segment or point.
+    int g_x2;
     int g_y2;
+    signed char g_ux;           // Unit vector of allowed motion.
+    signed char g_uy;
     bool g_active;              // Inactive when instance not expanded.
 };
 
@@ -162,17 +179,17 @@ private:
 
 struct cdelt_t
 {
-    unsigned long tab_key()  const { return (cd_key); }
+    uintptr_t tab_key()            const { return (cd_key); }
     cdelt_t *tab_next()            { return (cd_next); }
     cdelt_t *tgen_next(bool)       { return (cd_next); }
     void set_tab_next(cdelt_t *n)  { cd_next = n; }
 
-    void set_key(const void *p)    { cd_key = (unsigned long)p; }
+    void set_key(const void *p)    { cd_key = (uintptr_t)p; }
     itable_t<idelt_t> *table()     { return (cd_tab); }
     void set_table(itable_t<idelt_t> *t) { cd_tab = t; }
 
 private:
-    unsigned long cd_key;
+    uintptr_t cd_key;
     cdelt_t *cd_next;
     itable_t<idelt_t> *cd_tab;
 };

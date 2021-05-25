@@ -43,6 +43,7 @@
 
 #include <stdio.h>
 #include <ctype.h>
+#include <stdint.h>
 #include "ginterf/graphics.h"
 #include "cd.h"
 #include "cd_types.h"
@@ -73,6 +74,10 @@
 // If the smallest side of an instance bounding box shown in a window
 // is less than this value in pixels, don't show fence (grip) marks.
 #define DSP_MIN_FENCE_INST_PIXELS   100
+
+// The grip marks that are not shown as fence lines are diamond shapes
+// extending this many pixels from the center.
+#define DSP_GRIP_MARK_PIXELS    4
 
 // Default dashed line style for unfilled boxes.
 #define DEF_BoxLineStyle        0xe38
@@ -329,7 +334,7 @@ public:
                 return;
             if (!d_invisible_master_tab)
                 d_invisible_master_tab = new SymTab(false, false);
-            d_invisible_master_tab->add((unsigned long)mdesc, 0, true);
+            d_invisible_master_tab->add((intptr_t)mdesc, 0, true);
         }
 
     void ClearInvisible(CDm *mdesc)
@@ -341,13 +346,13 @@ public:
                 d_invisible_master_tab = 0;
             }
             else
-                d_invisible_master_tab->remove((unsigned long)mdesc);
+                d_invisible_master_tab->remove((intptr_t)mdesc);
         }
 
     bool IsInvisible(CDm *mdesc)
         {
             return (d_invisible_master_tab && mdesc &&
-                SymTab::get(d_invisible_master_tab, (unsigned long)mdesc) !=
+                SymTab::get(d_invisible_master_tab, (intptr_t)mdesc) !=
                 ST_NIL);
         }
 

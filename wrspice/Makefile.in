@@ -109,7 +109,8 @@ LOCAL_LIBS = \
 ####### Executable targets ############################################
 
 TARGETS = wrspice wrspiced multidec proc2mod printtoraw
-all: cptest $(TARGETS) wdemo
+MMJCO = mmjco/mmjco
+all: cptest $(TARGETS) $(MMJCO) wdemo
 
 cptest:
 	cd help; make cptest
@@ -159,6 +160,9 @@ bin/printtoraw: bin/printtoraw.o $(BASE)/lib/miscutil.a
 	@echo $@: dynamic link
 	@$(LINKCC) -o bin/printtoraw bin/printtoraw.o $(BASE)/lib/miscutil.a \
   $(STDCLIB) $(WINPTHREADFIX)
+
+mmjco/mmjco: 
+	cd mmjco; make
 
 #######################################################################
 ####### Recursively generate libraries ################################
@@ -293,6 +297,7 @@ eclean:
 	-@for a in $(TARGETS); do \
 	    rm -f bin/$$a$(EXESUFFIX); \
 	done
+	-@rm -f bin/wrspice.dll
 
 clean: eclean
 	-@for a in $(SUBDIRS) devlib; do \
@@ -353,7 +358,8 @@ INSTALL_PREFIX ?= $(prefix)
 destn = $(INSTALL_PREFIX)/$(TOOLROOT)/wrspice.current
 toolbin = $(INSTALL_PREFIX)/$(TOOLROOT)/bin
 
-install: install_wrspice_pkg install_links devkit_examples install_devkit
+install: install_wrspice_pkg clean_links install_links devkit_examples \
+  install_devkit
 
 install_wrspice_pkg: install_test install_clean install_bin install_help \
   install_icons install_startup install_scripts install_examples install_docs
@@ -376,31 +382,59 @@ install_test::
 	    fi; \
 	fi
 
+# In order to use the Windows mklink command, user must be running with
+# Admin privileges, or Developer Mode must be on.  Set this from
+# Settings/Update & Security/For Developers
+
 install_links::
-	@rm -f $(INSTALL_PREFIX)/$(TOOLROOT)/wrspice
-	@ln -s $(destn) $(INSTALL_PREFIX)/$(TOOLROOT)/wrspice
-	@rm -f $(toolbin)/multidec
-	@ln -s $(destn)/bin/multidec $(toolbin)/multidec
-	@rm -f $(toolbin)/proc2mod
-	@ln -s $(destn)/bin/proc2mod $(toolbin)/proc2mod
-	@rm -f $(toolbin)/printtoraw
-	@ln -s $(destn)/bin/printtoraw $(toolbin)/printtoraw
-	@rm -f $(toolbin)/wrspice
-	@ln -s $(destn)/bin/wrspice $(toolbin)/wrspice
-	@rm -f $(toolbin)/wrspiced
-	@ln -s $(destn)/bin/wrspiced $(toolbin)/wrspiced
+	-@if [ -n "$(EXESUFFIX)" ]; then \
+	    $(BASE)/util/make_junc $(INSTALL_PREFIX)/$(TOOLROOT)/wrspice \
+  $(destn); \
+	    $(BASE)/util/make_link $(toolbin)/mmjco$(EXESUFFIX) \
+  $(destn)/bin/mmjco$(EXESUFFIX); \
+	    $(BASE)/util/make_link $(toolbin)/multidec$(EXESUFFIX) \
+  $(destn)/bin/multidec$(EXESUFFIX); \
+	    $(BASE)/util/make_link $(toolbin)/printtoraw$(EXESUFFIX) \
+  $(destn)/bin/printtoraw$(EXESUFFIX); \
+	    $(BASE)/util/make_link $(toolbin)/proc2mod$(EXESUFFIX) \
+  $(destn)/bin/proc2mod$(EXESUFFIX); \
+	    $(BASE)/util/make_link $(toolbin)/wrspice$(EXESUFFIX) \
+  $(destn)/bin/wrspice$(EXESUFFIX); \
+	    $(BASE)/util/make_link $(toolbin)/wrspiced$(EXESUFFIX) \
+  $(destn)/bin/wrspiced$(EXESUFFIX); \
+	    $(BASE)/util/make_link $(toolbin)/wrspice.dll \
+  $(destn)/bin/wrspice.dll; \
+	    cp -f $(destn)/bin/wrspice.bat $(toolbin); \
+	else \
+	    ln -s $(destn) $(INSTALL_PREFIX)/$(TOOLROOT)/wrspice; \
+	    ln -s $(destn)/bin/mmjco$(EXESUFFIX) \
+  $(toolbin)/mmjco$(EXESUFFIX); \
+	    ln -s $(destn)/bin/multidec$(EXESUFFIX) \
+  $(toolbin)/multidec$(EXESUFFIX); \
+	    ln -s $(destn)/bin/printtoraw$(EXESUFFIX) \
+  $(toolbin)/printtoraw$(EXESUFFIX); \
+	    ln -s $(destn)/bin/proc2mod$(EXESUFFIX) \
+  $(toolbin)/proc2mod$(EXESUFFIX); \
+	    ln -s $(destn)/bin/wrspice$(EXESUFFIX) \
+  $(toolbin)/wrspice$(EXESUFFIX); \
+	    ln -s $(destn)/bin/wrspiced$(EXESUFFIX) \
+  $(toolbin)/wrspiced$(EXESUFFIX); \
+	fi
+
+# Under MSYS2, rm deletes Windows links and junctions.
 
 clean_links::
-	-@if [ -n $(EXESUFFIX) ]; then \
-	    rm -rf $(INSTALL_PREFIX)/$(TOOLROOT)/wrspice; \
-	else \
-	    rm -f $(INSTALL_PREFIX)/$(TOOLROOT)/wrspice; \
+	-@rm -f $(INSTALL_PREFIX)/$(TOOLROOT)/wrspice
+	-@rm -f $(toolbin)/mmjco$(EXESUFFIX)
+	-@rm -f $(toolbin)/multidec$(EXESUFFIX)
+	-@rm -f $(toolbin)s/printtoraw$(EXESUFFIX)
+	-@rm -f $(toolbin)/proc2mod$(EXESUFFIX)
+	-@rm -f $(toolbin)/wrspice$(EXESUFFIX)
+	-@rm -f $(toolbin)/wrspiced$(EXESUFFIX)
+	-@if [ -n "$(EXESUFFIX)" ]; then \
+            rm -f $(toolbin)/wrspice.bat; \
+            rm -f $(toolbin)/wrspice.dll; \
 	fi
-	-@rm -f $(toolbin)/multidec
-	-@rm -f $(toolbin)/proc2mod
-	-@rm -f $(toolbin)s/printtoraw
-	-@rm -f $(toolbin)/wrspice
-	-@rm -f $(toolbin)/wrspiced
 
 install_clean::
 	-@rm -rf $(destn)
@@ -410,6 +444,7 @@ $(destn)/bin::
 	@for aa in wrspiced multidec proc2mod printtoraw; do \
 	    $(INSTALL_BIN) bin/$$aa$(EXESUFFIX) $@; \
 	done
+	$(INSTALL_BIN) mmjco/mmjco$(EXESUFFIX) $@; \
 # Don't strip wrspice.exe, Webroot will think its a virus!
 	@if [ $(DLL_SPICE_PROG) = wrspice ]; then \
 	    $(INSTALL_BIN) bin/wrspice.dll $@; \
@@ -437,6 +472,7 @@ $(destn)/help::
 	for a in $$help; do \
 	    $(INSTALL_LIB) help/$$a $@; \
 	done
+	cp -f mmjco/README $@/mmjco.txt;
 	helpss=`packages/util/wrspice_files help_screenshots`; \
         for a in $$helpss; do \
 	    $(INSTALL_LIB) help/screenshots/$$a $@/screenshots; \

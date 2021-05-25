@@ -428,18 +428,26 @@ follow.
 \et FcPlaneBloat & Capacitance extractor substrate bloat dimension\\ \hline
 \et FcUnits & Capacitance extractor file units: m, cm, mm, um, in, mils\\ \hline
 
-% 090414
+% 011621
 \multicolumn{2}{|c|}{\kb Inductance/Resistance Extraction Interface}\\ \hline
 \et FhArgs & {\it FastHenry} command line arguments\\ \hline
+\et FhDefaults & Text for {\vt .DEFAULT} line in {\it FastHenry} input\\
+  \hline
+\et FhDefNhinc & Default for {\vt nhinc} in {\it FastHenry} input\\ \hline
+\et FhDefRh & Default for {\vt rh} in {\it FastHenry} input\\ \hline
 \et FhForeg & {\it FastHenry} run in foreground if set\\ \hline
 \et FhFreq & {\it FastHenry} frequency specification\\ \hline
 \et FhLayerName & {\it FastHenry} interface masking layer name\\ \hline
-\et FhMinRectSize & Minimum rectangle dimension for Manhattanization\\ \hline
+\et FhManhGridCnt & Manhattanization grid cell count\\ \hline
 \et FhMonitor & {\it FastHenry} output appears in console window if set\\
   \hline
+\et FhOverride & Override {\vt nhinc}, {\vt rh} in {\it FastHenry} input\\ \hline
 \et FhPath & Path to {\it FastHenry} executable\\ \hline
 \et FhUnits & {\it FastHenry} file units: m, cm, mm, um, in, mils\\ \hline
+\et FhUseFilament & Use {\it FastHenry} filaments\\ \hline
+\et FhVolElMin & {\it FastHenry} volume element minimum size factor\\ \hline
 \et FhVolElTarget & {\it FastHenry} volume element count target\\ \hline
+\et FhVolEnable & Enable segment refinement.\\ \hline
 
 % 102613
 \multicolumn{2}{|c|}{\kb Help System}\\ \hline
@@ -5069,7 +5077,7 @@ The value of this variable tracks the {\cb Via search depth} entry
 area in the {\cb Net Config} page of the {\cb Extraction Setup} panel
 from the {\cb Extract Menu}.
 
-% 030715
+% 071820
 \index{ViaConvex variable}
 \item{\et ViaConvex}\\
 {\bf Value:} boolean.\\
@@ -5077,9 +5085,10 @@ This applies when checking for connectivity through a via during
 extraction.  When set, all non-rectangular vias are assumed to be
 convex polygons.  The test region is taken as a small rectangle
 centered on the via bounding box.  This simplifies and should speed
-testing.  It is intended specifically for Hypres-style circular vias. 
-It has no effect on rectangular vias.  It should {\bf not} be set if
-any vias are non-convex polygons, as incorrect results may occur.
+testing.  It is intended specifically for circular vias, as used in
+superconductive electronics.  It has no effect on rectangular vias. 
+It should {\bf not} be set if any vias are non-convex polygons, as
+incorrect results may occur.
 
 Whether or not this variable is set tracks the state of the {\cb
 Assume convex vias} check box in the {\cb Net Config} page of the {\cb
@@ -5547,27 +5556,60 @@ Extraction} panel {\cb Params} page.
 
 
 % -----------------------------------------------------------------------------
-% !set:fh 090314
+% !set:fh 111819
 \section{Inductance/Resistance Extraction Interface}
 \label{fhvars}
 \index{variables!fasthenry}
 The following variables apply to the inductance/resistance extraction
-({\it FastHenry}) interface.  Most of these are associated with entry
-fields in the {\cb LR Extraction} panel, which is brought up with the
-{\cb Extract LR} button in the {\cb Extract Menu}.
+({\it FastHenry} interface).  Most of these are associated with entry
+fields in the {\cb LR Extraction} panel, which is brought up
+with the {\cb Extract LR} button in the {\cb Extract Menu}.
 
 \begin{description}
-% 090314
+% 111819
 \index{FhArgs variable}
 \item{\et FhArgs}\\
 {\bf Value:} string.\\
 This value can be set to a string, which will be included in the
 argument list when {\it FastHenry} is initiated with the {\cb Run
-FastHenry} button in the {\cb LR Extraction} panel {\cb Run} page. 
-The variable is most conveniently manipulated with the text entry
-field in the {\cb LR Extraction} panel {\cb Run} page.
+FastHenry} button in the {\cb LR Extraction} panel {\cb Run}
+page.  The variable is most conveniently manipulated with the text
+entry field in the {\cb LR Extraction} panel {\cb Run} page.
 
-% 090314
+% 071820
+\index{FhDefaults variable}
+\item{\et FhDefaults}\\
+{\bf Value:} string.\\
+If set to a string, the value will be used in a {\vt .DEFAULT} line in
+the {\it FastHenry} input file created by the interface.  The variable
+is most conveniently manipulated with the text entry field in the {\cb
+LR Extraction} panel {\cb Run} page.  See the {\it FastHenry}
+documentation describing the syntax and options for the applicable
+text.
+
+% 011621
+\index{FhDefNhinc variable}
+\item{\et FhDefNhinc}\\
+{\bf Value:} integer 1 -- 20.\\
+Provide a default value for the {\vt nhinc} parameter as used by {\it
+FastHenry\/}.  This is overridden by values specified with the {\vt
+FH\_nhinc} technology keyword for layers, unless the {\et FhOverride}
+variable is set, in which case the this variable has precedence.  This
+tracks the {\cb FhDefNhinc} entry in the {\cb Params} page of the {\cb
+LR Extraction} panel.
+
+% 011621
+\index{FhDefRh variable}
+\item{\et FhDefRh}\\
+{\bf Value:} real 0.5 -- 4.0.\\
+Provide a default value for the {\vt rh} parameter as used by {\it
+FastHenry\/}.  This is overridden by values specified with the {\vt
+FH\_rh} technology keyword for layers, unless the {\et FhOverride}
+variable is set, in which case the this variable has precedence.  This
+tracks the {\cb FhDefRh} entry in the {\cb Params} page of the {\cb LR
+Extraction} panel.
+
+% 111819
 \index{FhForeg variable}
 \item{\et FhForeg}\\
 {\bf Value:} boolean.\\
@@ -5584,7 +5626,7 @@ This variable controls, and is controlled by, the setting of the {\cb
 Run in foreground} check box in the {\cb Run} page of the {\cb LR
 Extraction} panel from the {\cb Extract Menu}.
 
-% 090314
+% 111819
 \index{FhFreq variable}
 \item{\et FhFreq}\\
 {\bf Value:} string.\\
@@ -5620,19 +5662,26 @@ hierarchy will be included in extraction.
 If this variable is set to the name of an existing layer name in the
 layer table, that layer will do the clipping.
 
-% 090314
-\index{FhMinRectSize variable}
-\item{\et FhMinRectSize}\\
-{\bf Value:} real number 0.01--10.0.\\
+% 111819
+\index{FhManhGridCnt variable}
+\item{\et FhManhGridCnt}\\
+{\bf Value:} real number 1e2--1e5.\\
 When a non-Manhattan polygon is ``Manhattanized'' for {\it FastHenry},
 it is converted to an approximating Manhattan polygon.  This variable
 can be used to set the minimum rectangle width and height used in the
-decomposition.  The value is specified in microns.  If not set, a
-value of 1.0 microns is used.  This variable is most conveniently
-manipulated with the text input field in the {\cb LR Extraction} panel
-{\cb Params} page.
+decomposition.  This value is given by
+\begin{quote}
+{\vt sqrt(}{\it area\_of\_interest\/}{\vt /FhManhGridCnt)}
+\end{quote}
+If not set, a value of 1000 is used.  Larger values are more accurate
+but slow processing, sometimes dramatically.  The {\it
+area\_of\_interest} is the layout area being processed for input to
+{\it FastHenry}.
 
-% 090314
+This variable is most conveniently manipulated with the text input
+field in the {\cb LR Extraction} panel {\cb Params} page.
+
+% 111819
 \index{FhMonitor variable}
 \item{\et FhMonitor}\\
 {\bf Value:} boolean.\\
@@ -5654,10 +5703,21 @@ output will again be block buffered under Windows, but there is no
 requirement for a {\vt tee} command.
 
 This variable mirrors the state of the {\cb Out to console} check box
-in the {\cb Run} page of the {\cb LR Extraction} panel from the {\cb
-Extract Menu}.
+in the {\cb Run} page of the {\cb LR Extraction} panel from the
+{\cb Extract Menu}.
 
-% 090314
+% 011621
+\index{FhOverride variable}
+\item{\et FhOverride}\\
+{\bf Value:} boolean.\\
+When set, values of the {\et FhDefNhinc} and {\et FhDefRh}
+variables will override values provided by {\vt FH\_nhinc} and
+{\vt FH\_rh} technology layer parameters to use for {\vt
+nhinc} and {\vt rh} parameters in {\it FastHenry} input.  This
+tracks the state of the {\cb Override Layer NHINC, RH} button
+in the {\cb Params} page of the {\cb LR Extraction} panel. 
+
+% 111819
 \index{FhPath variable}
 \item{\et FhPath}\\
 {\bf Value:} directory path string.\\
@@ -5673,7 +5733,7 @@ the foreground, and background runs will fail.
 This tracks the setting of the text entry field in the {\cb Run} page
 of the {\cb LR Extraction} panel.
 
-% 090314
+% 111819
 \index{FhUnits variable}
 \item{\et FhUnits}\\
 {\bf Value:} units string.\\
@@ -5686,6 +5746,26 @@ word will also be accepted.  This variable is most conveniently
 manipulated with the choice menu found in the {\cb LR Extraction}
 panel {\cb Params} page.
 
+% 011621
+\index{FhUseFillament variable}
+\item{\et FhUseFillament}\\
+{\bf Value:} units boolean.\\
+If set, {\it FastHenry} will decompose segments into filaments
+according to the given {\vt nhinc} and {\vt rh} parameters.  If not
+set, the interface will automatically slice segments according to the
+same parameters, without further refinement by {\it FastHenry\/}. 
+This tracks the state of the {\cb Use FastHenry Internal NHINC, RH}
+button in the {\cb Params} page of the {\cb LR Extraction} panel.
+
+% 011621
+\index{FhVolElMin variable}
+\item{\et FhVolElMin}\\
+{\bf Value:} units real 0 -- 1.0, default 0.1.\\
+The minimum rectangle edge length is this factor multiplying
+the maximum edge length.  This tracks the {\cb FhVolElMin}
+entry in the {\cb Params} page of the {\cb LR Extraction}
+panel.
+
 % 090314
 \index{FhVolElTarget variable}
 \item{\et FhVolElTarget}\\
@@ -5696,6 +5776,15 @@ provide a length.  Volume elements are split so that no edge is longer
 than this length.  The total number of volume elements is
 approximately the value of this variable.  Each volume element
 contains six segments, connecting the center node to each face node.
+
+% 011621
+\index{FhVolEnable variable}
+\item{\et FhVolEnable}\\
+{\bf Value:} boolean.\\
+Enable segment refinement.  This tracks the state of the {\cb
+Enable} button in the {\cb Params} page of the {\cb LR
+Extraction} panel.
+
 \end{description}
 
 

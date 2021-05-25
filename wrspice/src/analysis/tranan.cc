@@ -115,6 +115,7 @@ sTRANAN::init(sCKT *ckt)
     ckt->CKTmaxStep = TRANmaxStep;
     ckt->CKTtranDiffs[0] = 1;
     ckt->CKTtranDegree = 0;
+    ckt->CKTqueva = false;
 
     if (TS.t_step <= 0) {
         OP.error(ERR_FATAL, "zero or negative TRAN step given.");
@@ -160,27 +161,21 @@ sTRANAN::init(sCKT *ckt)
 
     TS.t_nointerp = false;
     TS.t_hitusertp = false;
-    if (ckt->CKTvblk) {
-        // if there is a verilog block, hit the user time points
+
+    switch (ckt->CKTcurTask->TSKtranStepType) {
+    default:
+    case STEP_NORMAL:
+        break;
+    case STEP_HITUSERTP:
         TS.t_hitusertp = true;
-        ckt->CKTcurTask->TSKtranStepType = STEP_HITUSERTP;
-    }
-    else {
-        switch (ckt->CKTcurTask->TSKtranStepType) {
-        default:
-        case STEP_NORMAL:
-            break;
-        case STEP_HITUSERTP:
-            TS.t_hitusertp = true;
-            break;
-        case STEP_NOUSERTP:
-            TS.t_nointerp = true;
-            break;
-        case STEP_FIXEDSTEP:
-            TS.t_fixed_step = TS.t_step;
-            TS.t_nointerp = true;
-            break;
-        }
+        break;
+    case STEP_NOUSERTP:
+        TS.t_nointerp = true;
+        break;
+    case STEP_FIXEDSTEP:
+        TS.t_fixed_step = TS.t_step;
+        TS.t_nointerp = true;
+        break;
     }
 
     TS.t_polydegree = ckt->CKTcurTask->TSKinterpLev;
@@ -350,12 +345,14 @@ TRANanalysis::tran_dcoperation(sCKT *ckt, int restart)
         tran->t_check = (tran->t_start || !tran->t_nointerp) ?
             tran->t_start : tran->t_stop;
 
+        tran->t_vacheck = 0.0;
+
         // set initial conditions
         error = ckt->ic();
         if (error)
             return (error);
         if (ckt->CKTvblk)
-            ckt->CKTvblk->initialize();
+            ckt->CKTvblk->initialize(job->JOBoutdata);
 
         if (ckt->CKTmode & MODEUIC) {
             error = ckt->setic();
@@ -515,10 +512,22 @@ sTRANint::accept(sCKT *ckt, sSTATS *stat, int *done, int *afterpause)
             return (error);
     }
 
+    if (ckt->CKTvblk && outd->count) {
+        if (ckt->CKTcurTask->TSKvaStep) {
+            double vastep = ckt->CKTcurTask->TSKvaStep * t_step;
+            if (ckt->CKTtime > (t_vacheck - ckt->CKTcurTask->TSKminBreak)) {
+                ckt->CKTvblk->run_step(outd);
+                t_vacheck += vastep;
+            }
+        }
+        else if (ckt->CKTqueva) {
+            ckt->CKTvblk->run_step(outd);
+            ckt->CKTqueva = false;
+        }
+    }
+
     if (t_hitusertp || t_nointerp) {
         if (t_dumpit) {
-            if (ckt->CKTvblk && outd->count)
-                ckt->CKTvblk->run_step(outd);
             ckt->dump(ckt->CKTtime, job->JOBrun);
             if (!t_nointerp)
                 t_dumpit = false;

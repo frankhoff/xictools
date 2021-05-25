@@ -364,6 +364,7 @@ TechLayerParams::TechLayerParams(CDl*)
 
     lp_rho              = 0.0;
     lp_ohms_per_sq      = 0.0;
+    lp_tau              = 0.0;
 
     lp_epsrel           = 0.0;
     lp_cap_per_area     = 0.0;
@@ -373,6 +374,9 @@ TechLayerParams::TechLayerParams(CDl*)
     lp_gp_lname         = 0;
     lp_diel_thick       = 0.0;
     lp_diel_const       = 0.0;
+
+    lp_fh_nhinc         = 0;
+    lp_fh_rh            = 0.0;
 
     lp_ant_ratio        = 0.0;
 

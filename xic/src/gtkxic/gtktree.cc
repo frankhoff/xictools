@@ -91,8 +91,8 @@ namespace {
             bool build_tree_rc(cCHD*, symref_t*, GtkTreeIter*, int);
 
             static int t_build_proc(void*);
-            static bool t_select_proc(GtkTreeSelection*, GtkTreeModel*,
-                GtkTreePath*, bool, void*);
+            static int t_select_proc(GtkTreeSelection*, GtkTreeModel*,
+                GtkTreePath*, int, void*);
             static bool t_focus_proc(GtkWidget*, GdkEvent*, void*);
             static int t_collapse_proc(GtkTreeView*, GtkTreeIter*,
                 GtkTreePath*, void*);
@@ -124,7 +124,7 @@ namespace {
             unsigned int t_ucount;      // user feedback counter
             unsigned int t_udel;        // user feedback increment
             int t_mdepth;               // max depth
-            unsigned long t_check_time; // interval test
+            uint64_t t_check_time;      // interval test
         };
 
         sTree *Tree;
@@ -290,8 +290,7 @@ sTree::sTree(GRobject c, const char *root, TreeUpdMode dmode)
 
     GtkTreeSelection *sel =
         gtk_tree_view_get_selection(GTK_TREE_VIEW(t_tree));
-    gtk_tree_selection_set_select_function(sel,
-        (GtkTreeSelectionFunc)t_select_proc, 0, 0);
+    gtk_tree_selection_set_select_function(sel, t_select_proc, 0, 0);
     // TreeView bug hack, see note with handlers.   
     gtk_signal_connect(GTK_OBJECT(t_tree), "focus",
         GTK_SIGNAL_FUNC(t_focus_proc), this);
@@ -685,9 +684,9 @@ sTree::build_tree_rc(cCHD *chd, symref_t *p, GtkTreeIter *parent, int dpt)
     const cref_o_t *c;
     while ((c = cgen.next()) != 0) {
         symref_t *cp = ntab->find_symref(c->srfptr);
-        if (cp && SymTab::get(xtab, (unsigned long)cp) == ST_NIL) {
+        if (cp && SymTab::get(xtab, (uintptr_t)cp) == ST_NIL) {
             s0 = new syrlist_t(cp, s0);
-            xtab->add((unsigned long)cp, 0, false);
+            xtab->add((uintptr_t)cp, 0, false);
         }
     }
     delete xtab;
@@ -771,9 +770,9 @@ sTree::t_build_proc(void*)
 
 // Static function.
 //
-bool
+int
 sTree::t_select_proc(GtkTreeSelection*, GtkTreeModel *store,
-    GtkTreePath *path, bool issel, void*)
+    GtkTreePath *path, int issel, void*)
 {
     if (!Tree)
         return (false);

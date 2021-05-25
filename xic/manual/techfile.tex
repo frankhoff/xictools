@@ -7,7 +7,7 @@
 \appendix
 \chapter{Technology File}
 % -----------------------------------------------------------------------------
-% techfile 041918
+% techfile 071820
 \label{techfile}
 \index{technology file}
 \index{xic\_tech file}
@@ -33,11 +33,13 @@ technology file for the next time.
 \index{techfiles directory}
 \index{library path}
 \index{Save Tech button}
-The technology file is searched for in the order of the current
-directory (where {\Xic} was started), in a subdirectory of this
-directory named ``{\vt techfiles}'', then along the library search path. 
-The library search path can be set with the environment variable {\et
-XIC\_LIB\_PATH}.  The default path is
+The technology file is sought first in the current directory (where
+{\Xic} was started).  If the environment variable {\et XIC\_TECH\_DIR}
+is set to a directory path, that directory is searched.  If a
+subdirectory of the current directory named ``{\vt techfiles}''
+exists, it is searched next.  Finally, the technology file is searched
+for along the library search path.  The library path can be set with
+the environment variable {\et XIC\_LIB\_PATH}.  The default path is
 \begin{quote}
  {\vt ( . /usr/local/xictools/xic/startup )}.
 \end{quote}
@@ -84,18 +86,31 @@ The technology file has a macro facility which can be used to simplify
 the constructs and to customize the file to a particular variation of
 the technology.
 
-The technology file may contain the following keyword/value pair
+The technology file may contain the following keyword/value pairs
 near the top of the file:
 \begin{description}
 \index{technology name}
 \item{\vt Technology} {\it name}\\
-The {\it name} can be any character token (no white space allowed)
-and gives a name to the technology.  This is not directly used by
-{\Xic}, but but the {\it name} is placed in the macro name space of
-the macro preprocessor used when reading various types of input
-files, including the device library.  The name is displayed in the
-status line of the main window, and is part of the information
-available for output in scripts and elsewhere.
+The {\it name} can be any character token (no white space allowed) and
+defines a value for the predefined TECHNOLOGY macro.  Additionally,
+the value of {\it name} is itself defined as a macro.  These are not
+directly used by {\Xic}, but the macro is placed in the name space of
+the macro preprocessor used when reading various types of input files,
+including the device library.  The name is displayed in the status
+line of the main window, and is part of the information available for
+output in scripts and elsewhere.
+
+\item{\vt Vendor} {\it name}\\
+The {\it name} can be any character token (no white space allowed) and
+defines a value for the predefined VENDOR macro.  This is not
+directly used by {\Xic}, but the macro is placed in the name space of
+the macro preprocessor used when reading various types of input files.
+
+\item{\vt Process} {\it name}\\
+The {\it name} can be any character token (no white space allowed) and
+defines a value for the predefined PROCESS macro.  This is not
+directly used by {\Xic}, but the macro is placed in the name space of
+the macro preprocessor used when reading various types of input files.
 
 \index{device library name}
 \item{\vt DeviceLibrary} {\it libname}\\
@@ -1108,7 +1123,7 @@ appear in the input mapping for the layer.
 
 
 %-------------------------------
-% techfile:layers:ext 062016
+% techfile:layers:ext 011621
 \subsection{Technology File Layer Block Keywords:  Extraction}
 \label{exkwords}
 
@@ -1352,6 +1367,69 @@ A via is indicated if part of the via object is not covered by {\vt I2}
 or by {\vt RES}.
 \end{description}
 
+\item{\et ViaCut {\it expression\/}}\\
+\index{ViaCut keyword}
+This is applied to an insulating layer with positive {\et
+Thickness} given, and defines cuts through the layer from the
+layer expression.  This applies only when using
+three-dimensional processing such as for cross sections and
+the FastCap/FastHenry interface.  It allows one to separate
+abstract ({\et Thickness}> not given or zero) {\et Via} layers
+from the physical layers that represent dielectrics.  The
+abstract layers are used for netlisting, LVS, etc.  The
+patterning is applied to the dielectric {\et ViaCut} layers
+when computing 3D geometry.  This allows abstract vias to have
+cuts through multiple dielectric layers, which is required for
+some complex layer sequences.
+
+Example\\
+Assume one has the following sequence of layers:
+\begin{quote}\vt
+M1 I1A R1 I1B M2 VM12 VR12
+\end{quote}
+
+The {\vt I1A} and {\vt I1B} layers are dielectrics, which
+encapsulate a resistor {\vt R1}.  {\vt VM12} is a via between
+{\vt M1} and {\vt M2}, {\vt VR12} is a via between {\vt R1}
+and {\vt M2} (these are two separate etch steps).
+
+To express this structure, one can use
+\begin{quote}\vt
+PhysLayer M1\\
+Conductor\\
+Thickness 0.2\\
+\\
+PhysLayer I1A\\
+ViaCut VM12\\
+Thickness 0.2\\
+\\
+PhysLayer R1\\
+Thickness 0.1\\
+Rsh 2.0\\
+\\
+PhysLayer i1B\\
+ViaCut VM12|VR12\\
+Thickness 0.2\\
+\\
+PhysLayer VM12\\
+Via M1 M2\\
+\\
+PhysLayer VR12\\
+Via R1 M2\\
+\\
+PhysLayer M2\\
+Conductor\\
+Thickness 0.2\\
+\end{quote}
+
+In this case, the {\vt VM12} and {\vt VR12} layers have no
+thickness, so they are abstract, but still establish
+connectivity for netlisting and LVS.  The physical structure
+in 3D is actually established by the {\vt I1A} and {\vt I1B}
+layers, which must have nonzero {\et Thickness}.  These are
+used when 3D extraction (cross section or L/C extraction) is
+being performed.
+
 \item{\et Dielectric}\\
 \index{Dielectric keyword}
 This keyword is intended to specify an explicit capacitor dielectric,
@@ -1398,7 +1476,7 @@ The combination is equivalent to {\et GroundPlaneClear}.
 
 
 %-------------------------------
-% techfile:layers:phys 090714
+% techfile:layers:phys 011621
 \subsection{Technology File Layer Block Keywords:  Physical Properties}
 \label{phkwords}
 
@@ -1436,6 +1514,25 @@ and which layers are planarized by default.
 This keyword supplies the film thickness of the corresponding
 deposited film.  The {\it thickness} is given in microns.  This can be
 applied to any physical layer.
+
+\item{\et FH\_nhinc} {\it nhinc}\\
+This keyword applies to the {\it FastHenry} interface, and may be
+applied to conducting layers.  This specifies the {\vt nhinc}
+parameter to horizontal segments (parallel to the substrate) with
+thinkness equal to the layer thickness (as given with the {\et
+Thickness} keyword).  This is the number of filaments contained in the
+segment, which can account for skin or penetration depth of conductors
+on the layer, in the vertical direction.  The value given must be an
+integer 1 or larger.  See the {\it FastHenry} documentation for more
+information about the {\vt nhinc} parameter.
+
+\item{\et FH\_rh} {\it rh}\\
+This keyword applies to the {\it FastHenry} interface, and may be
+applied to conducting layers.  This specifies the {\vt rh} parameter,
+which is the ratio of heights between adjacent filaments.  The default
+ratio is 2.0.  Note that this applies only when the number of
+filaments is larger than one.  See the {\it FastHenry} documentation
+for more information about the {\vt rh} parameter.
 \end{description}
 
 At most one of the following two keywords ({\et Rho} and {\et Sigma})
@@ -1467,6 +1564,14 @@ Sigma} is given, and also {\et Thickness}, then the sheet resistance
 is already available and this keyword is redundant.  Supplying this
 keyword overrides the {\et Rho}/{\et Thickness} value for sheet
 resistance.
+
+\item{\et Tau {\it tau}}\\
+\index{Tau keyword}
+This is the Drude relaxation time for resistive layers, as
+accepted by current releases of FastHenry.  This enables
+extraction of the parasitic inductance of resistors, which can
+become appreciable for some materials at low temperature. 
+This parameter is used only when creating FastHenry input.
 
 \item{\et EpsRel {\it diel\_constant}}\\
 This keyword supplies the relative dielectric constant of insulating
@@ -2329,7 +2434,7 @@ returned, but {\kb Control} works fine with other function keys.
 
 
 %-------------------------------
-% techfile:attr:gridreg 070214
+% techfile:attr:gridreg 012321
 \subsection{Grid Registers}
 \index{grid registers}
 
@@ -2385,9 +2490,9 @@ of pixels in the four orthogonal directions to extend the dot into a
 cross.
 
 \item{\vt -a} {\it axes} (integer 0--2)\\
-This sets the axes presentation mode in physical mode.  If 0, axes
-aren't shown.  If 1, plain axes are shown, and if 2, axes are shown
-and the origin decorated.
+This sets the axes presentation mode in physical mode.  If 0, axes are
+shown and the origin decorated.  If 1, plain axes are shown, and if 2,
+axes aren't shown.
 
 \item{\vt -d} {\it dsp} (boolean)\\
 This sets whether the grid is displayed or not.  The {\it dsp} token

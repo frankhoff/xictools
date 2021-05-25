@@ -298,7 +298,7 @@ sGrd::sGrd(gtk_bag *owner, WindowDesc *wd)
     GtkWidget *focus_widget = sb;
     sb_resol.connect_changed(GTK_SIGNAL_FUNC(gd_resol_change_proc),
         grid_pops + gd_win_num, "Resolution");
-    gtk_widget_set_usize(sb, 80, -1);
+    gtk_widget_set_size_request(sb, 80, -1);
     gtk_box_pack_start(GTK_BOX(vbox), sb, false, false, 0);
 
     label = gtk_label_new("");
@@ -323,7 +323,7 @@ sGrd::sGrd(gtk_bag *owner, WindowDesc *wd)
     sb = sb_snap.init(1, 1.0, 10.0, 0);
     sb_snap.connect_changed(GTK_SIGNAL_FUNC(gd_snap_change_proc),
         grid_pops + gd_win_num, "Snap");
-    gtk_widget_set_usize(sb, 80, -1);
+    gtk_widget_set_size_request(sb, 80, -1);
     gtk_box_pack_start(GTK_BOX(vbox), sb, true, false, 0);
 
     button = gtk_check_button_new_with_label("GridPerSnap");
@@ -573,7 +573,7 @@ sGrd::sGrd(gtk_bag *owner, WindowDesc *wd)
     sb = sb_cmult.init(1, 1.0, 50.0, 0);
     sb_cmult.connect_changed(GTK_SIGNAL_FUNC(gd_cmult_change_proc),
         grid_pops + gd_win_num, "CoarseMult");
-    gtk_widget_set_usize(sb, 80, -1);
+    gtk_widget_set_size_request(sb, 80, -1);
     gtk_container_add(GTK_CONTAINER(frame), sb);
 
     gtk_table_attach(GTK_TABLE(form), frame, 2, 4, rcnt, rcnt+1,
@@ -645,7 +645,7 @@ sGrd::sGrd(gtk_bag *owner, WindowDesc *wd)
     sb = sb_crs.init(0, 0.0, 6.0, 0);
     sb_crs.connect_changed(GTK_SIGNAL_FUNC(gd_crs_change_proc),
         grid_pops + gd_win_num, "CrossSize");
-    gtk_widget_set_usize(sb, 80, -1);
+    gtk_widget_set_size_request(sb, 80, -1);
     gtk_container_add(GTK_CONTAINER(bframe), sb);
     gtk_table_attach(GTK_TABLE(eform), bframe, 1, 2, 1, 2,
         (GtkAttachOptions)(GTK_EXPAND | GTK_FILL | GTK_SHRINK),
@@ -653,7 +653,7 @@ sGrd::sGrd(gtk_bag *owner, WindowDesc *wd)
 
     GtkWidget *darea = gtk_drawing_area_new();
     gtk_widget_show(darea);
-    gtk_drawing_area_size(GTK_DRAWING_AREA(darea), 200, 10);
+    gtk_widget_set_size_request(darea, 200, 10);
     gtk_table_attach(GTK_TABLE(eform), darea, 0, 3, 2, 3,
         (GtkAttachOptions)(GTK_EXPAND | GTK_FILL | GTK_SHRINK),
         (GtkAttachOptions)(GTK_EXPAND | GTK_FILL | GTK_SHRINK), 2, 2);
@@ -677,7 +677,7 @@ sGrd::sGrd(gtk_bag *owner, WindowDesc *wd)
 
     darea = gtk_drawing_area_new();
     gtk_widget_show(darea);
-    gtk_drawing_area_size(GTK_DRAWING_AREA(darea), 200, 10);
+    gtk_widget_set_size_request(darea, 200, 10);
     gtk_widget_add_events(darea, GDK_BUTTON_PRESS_MASK);
     gtk_widget_add_events(darea, GDK_BUTTON_RELEASE_MASK);
     gtk_signal_connect(GTK_OBJECT(darea), "button-press-event",
@@ -727,7 +727,7 @@ sGrd::sGrd(gtk_bag *owner, WindowDesc *wd)
         DSP_MAX_GRID_THRESHOLD, 0);
     sb_thresh.connect_changed(GTK_SIGNAL_FUNC(gd_thresh_change_proc),
         grid_pops + gd_win_num, "GridThreshold");
-    gtk_widget_set_usize(sb, 50, -1);
+    gtk_widget_set_size_request(sb, 50, -1);
     gtk_table_attach(GTK_TABLE(gform), sb, 1, 2, 1, 2,
         (GtkAttachOptions)0,
         (GtkAttachOptions)(GTK_EXPAND | GTK_FILL | GTK_SHRINK), 2, 2);
@@ -1183,9 +1183,10 @@ sGrd::gd_axes_proc(GtkWidget *widget, void *arg)
     WindowDesc *wd = DSP()->Window(grd->gd_win_num);
     if (!wd)
         return;
-    if (GRX->GetStatus(widget) && wd->Mode() == Physical)
-        grd->gd_grid.set_axes(
-            (AxesType)(long)gtk_object_get_data(GTK_OBJECT(widget), "axes"));
+    if (GRX->GetStatus(widget) && wd->Mode() == Physical) {
+        grd->gd_grid.set_axes((AxesType)(intptr_t)
+            gtk_object_get_data(GTK_OBJECT(widget), "axes"));
+    }
 }
 
 
@@ -1195,7 +1196,7 @@ sGrd::gd_lst_proc(GtkWidget *widget, void *arg)
 {
     sGrd *grd = *(sGrd**)arg;
     if (grd && GRX->GetStatus(widget)) {
-        int lst = (long)gtk_object_get_data(GTK_OBJECT(widget), "lst");
+        int lst = (intptr_t)gtk_object_get_data(GTK_OBJECT(widget), "lst");
         if (lst == LstSolid) {
             if (!grd->gd_mask_bak && grd->gd_grid.linestyle().mask != 0 &&
                     grd->gd_grid.linestyle().mask != -1)

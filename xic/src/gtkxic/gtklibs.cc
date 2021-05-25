@@ -90,8 +90,8 @@ namespace {
             void pop_up_contents();
 
             static void lb_cancel(GtkWidget*, void*);
-            static bool lb_selection_proc(GtkTreeSelection*, GtkTreeModel*,
-                GtkTreePath*, bool, void*);
+            static int lb_selection_proc(GtkTreeSelection*, GtkTreeModel*,
+                GtkTreePath*, int, void*);
             static int lb_focus_proc(GtkWidget*, GdkEvent*, void*);
             static int lb_button_press_proc(GtkWidget*, GdkEvent*, void*);
             static void lb_action_proc(GtkWidget*, void*);
@@ -269,14 +269,13 @@ sLB::sLB(GRobject c)
 
     GtkTreeSelection *sel =
         gtk_tree_view_get_selection(GTK_TREE_VIEW(lb_list));
-    gtk_tree_selection_set_select_function(sel,
-        (GtkTreeSelectionFunc)lb_selection_proc, 0, 0);
+    gtk_tree_selection_set_select_function(sel, lb_selection_proc, 0, 0);
     // TreeView bug hack, see note with handlers.   
     gtk_signal_connect(GTK_OBJECT(lb_list), "focus",
         GTK_SIGNAL_FUNC(lb_focus_proc), this);
 
     gtk_container_add(GTK_CONTAINER(swin), lb_list);
-    gtk_widget_set_usize(lb_list, -1, 100);
+    gtk_widget_set_size_request(lb_list, -1, 100);
 
     // Set up font and tracking.
     GTKfont::setupFont(lb_list, FNT_PROP, true);
@@ -489,9 +488,9 @@ sLB::lb_cancel(GtkWidget*, void*)
 // is made, but not when the selection disappears, which happens when the
 // list is updated.
 //
-bool
+int
 sLB::lb_selection_proc(GtkTreeSelection*, GtkTreeModel *store,
-    GtkTreePath *path, bool issel, void *)
+    GtkTreePath *path, int issel, void *)
 {
     if (LB) {
         if (LB->lb_no_select && !issel)

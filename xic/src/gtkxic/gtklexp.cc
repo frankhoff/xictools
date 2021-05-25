@@ -269,7 +269,7 @@ sLx::sLx(GRobject c)
 
     lx_tolayer = gtk_entry_new();
     gtk_widget_show(lx_tolayer);
-    gtk_widget_set_usize(lx_tolayer, 40, -1);
+    gtk_widget_set_size_request(lx_tolayer, 40, -1);
     gtk_box_pack_start(GTK_BOX(row), lx_tolayer, true, true, 0);
 
     gtk_table_attach(GTK_TABLE(form), row, 0, 1, rowcnt, rowcnt+1,
@@ -296,7 +296,7 @@ sLx::sLx(GRobject c)
 
     GtkWidget *sb = sb_part.init(0, GRD_PART_MIN, GRD_PART_MAX, 2);
     sb_part.connect_changed(GTK_SIGNAL_FUNC(lx_val_changed), 0, "PartSize");
-    gtk_widget_set_usize(sb, 80, -1);
+    gtk_widget_set_size_request(sb, 80, -1);
     gtk_box_pack_start(GTK_BOX(row), sb, true, true, 0);
 
     gtk_table_attach(GTK_TABLE(form), row, 1, 2, rowcnt, rowcnt+1,
@@ -317,7 +317,7 @@ sLx::sLx(GRobject c)
 
     sb = sb_thread.init(DSP_DEF_THREADS, DSP_MIN_THREADS, DSP_MAX_THREADS, 0);
     sb_thread.connect_changed(GTK_SIGNAL_FUNC(lx_val_changed), 0, "thread");
-    gtk_widget_set_usize(sb, 80, -1);
+    gtk_widget_set_size_request(sb, 80, -1);
     gtk_box_pack_end(GTK_BOX(row), sb, false, false, 0);
 
     gtk_table_attach(GTK_TABLE(form), row, 1, 2, rowcnt, rowcnt+1,
@@ -719,7 +719,7 @@ sLx::lx_val_changed(GtkWidget *caller, void*)
 void
 sLx::lx_depth_proc(GtkWidget*, void *arg)
 {
-    depth_hst = (long)arg;
+    depth_hst = (intptr_t)arg;
 }
 
 
@@ -754,7 +754,7 @@ sLx::lx_save_proc(GtkWidget*, void *arg)
 {
     if (!Lx)
         return;
-    int ix = (long)arg;
+    int ix = (intptr_t)arg;
     const char *s = gtk_entry_get_text(GTK_ENTRY(Lx->lx_lexpr));
     if (*s)
         ED()->setLayerExpString(s, ix);
@@ -767,7 +767,7 @@ sLx::lx_recall_proc(GtkWidget*, void *arg)
 {
     if (!Lx)
         return;
-    int ix = (long)arg;
+    int ix = (intptr_t)arg;
     const char *s = ED()->layerExpString(ix);
     if (!s)
         s = "";

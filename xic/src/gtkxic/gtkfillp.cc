@@ -331,8 +331,7 @@ sFpe::sFpe(GRobject c)
     GtkWidget *darea = gtk_drawing_area_new();
     gtk_widget_show(darea);
     fp_editor = darea;
-    gtk_drawing_area_size(GTK_DRAWING_AREA(darea), fp_edt_box_dim,
-        fp_edt_box_dim);
+    gtk_widget_set_size_request(darea, fp_edt_box_dim, fp_edt_box_dim);
     gtk_widget_add_events(darea, GDK_ENTER_NOTIFY_MASK);
     gtk_container_add(GTK_CONTAINER(frame), darea);
     fp_connect_sigs(darea, false, true);
@@ -358,14 +357,14 @@ sFpe::sFpe(GRobject c)
     sb_nx.set_wrap(false);
     sb_nx.set_editable(true);
     sb_nx.connect_changed(GTK_SIGNAL_FUNC(fp_nxy_proc), (void*)(long)1, "nx");
-    gtk_widget_set_usize(sb, 50, -1);
+    gtk_widget_set_size_request(sb, 50, -1);
     gtk_box_pack_start(GTK_BOX(echbox), sb, false, false, 0);
 
     sb = sb_ny.init(8.0, 2.0, 32.0, 0);
     sb_ny.set_wrap(false);
     sb_ny.set_editable(true);
     sb_ny.connect_changed(GTK_SIGNAL_FUNC(fp_nxy_proc), (void*)(long)2, "ny");
-    gtk_widget_set_usize(sb, 50, -1);
+    gtk_widget_set_size_request(sb, 50, -1);
     gtk_box_pack_start(GTK_BOX(echbox), sb, false, false, 0);
     gtk_container_add(GTK_CONTAINER(frame), echbox);
     gtk_box_pack_start(GTK_BOX(ecvbox), frame, false, false, 0);
@@ -424,7 +423,7 @@ sFpe::sFpe(GRobject c)
     sb_defpats.set_wrap(true);
     sb_defpats.set_editable(false);
     sb_defpats.connect_changed(GTK_SIGNAL_FUNC(fp_bank_proc), 0, "Defpats");
-    gtk_widget_set_usize(sb, 50, -1);
+    gtk_widget_set_size_request(sb, 50, -1);
     gtk_container_add(GTK_CONTAINER(frame), sb);
     gtk_box_pack_start(GTK_BOX(scvbox), frame, false, false, 0);
 
@@ -463,8 +462,7 @@ sFpe::sFpe(GRobject c)
     darea = gtk_drawing_area_new();
     gtk_widget_show(darea);
     fp_sample = darea;
-    gtk_drawing_area_size(GTK_DRAWING_AREA(darea), fp_def_box_h,
-        fp_pat_box_h);
+    gtk_widget_set_size_request(darea, fp_def_box_h, fp_pat_box_h);
     gtk_container_add(GTK_CONTAINER(frame), darea);
     fp_connect_sigs(darea, true, true);
     gtk_box_pack_start(GTK_BOX(vbox), fp_editctrl, true, true, 0);
@@ -492,8 +490,7 @@ sFpe::sFpe(GRobject c)
             darea = gtk_drawing_area_new();
             gtk_widget_show(darea);
             fp_stores[i + j*3] = darea;
-            gtk_drawing_area_size(GTK_DRAWING_AREA(darea), fp_def_box_w,
-                fp_def_box_h);
+            gtk_widget_set_size_request(darea, fp_def_box_w, fp_def_box_h);
             gtk_container_add(GTK_CONTAINER(iframe), darea);
             if (j == 0 && i <= 1)
                 fp_connect_sigs(darea, true, false);
@@ -1474,7 +1471,7 @@ sFpe::fp_redraw_sample_hdlr(GtkWidget*, GdkEvent *event, void*)
 int
 sFpe::fp_redraw_store_hdlr(GtkWidget*, GdkEvent *event, void *arg)
 {
-    long i = (long)arg;
+    int i = (intptr_t)arg;
     if (Fpe->fp_pm_widget == Fpe->fp_stores[i]) {
         GdkEventExpose *pev = (GdkEventExpose*)event;
         gdk_window_copy_area(Fpe->fp_stores[i]->window, Fpe->GC(),
@@ -1816,7 +1813,7 @@ void
 sFpe::fp_nxy_proc(GtkWidget*, void *arg)
 {
     if (Fpe) {
-        if ((long)arg == 1) {
+        if ((intptr_t)arg == 1) {
             // Reconfigure the pixel map so that the pattern doesn't
             // turn to crap when the bpl changes.
 
@@ -1849,7 +1846,7 @@ sFpe::fp_nxy_proc(GtkWidget*, void *arg)
                 }
             }
         }
-        else if ((long)arg == 2)
+        else if ((intptr_t)arg == 2)
             Fpe->fp_ny = Fpe->sb_ny.get_value_as_int();
         Fpe->set_fp(Fpe->fp_array, Fpe->fp_nx, Fpe->fp_ny);
         Fpe->SetFillpattern(0);

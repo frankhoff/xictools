@@ -1180,7 +1180,7 @@ cTech::dispatch(FILE *techfp)
     if (Matching(Tkw.ReadCdsLmap())) {
         if (!cTechCdsIn::readLayerMap(tc_inbuf)) {
             const char *err = Errs()->get_error();
-            return (SaveError("%s: %s", Tkw.ReadCdsTech(),
+            return (SaveError("%s: %s", Tkw.ReadCdsLmap(),
                 err ? err : "unknown error"));
         }
         return (TCmatch);
@@ -1227,6 +1227,24 @@ cTech::dispatch(FILE *techfp)
         if (GetWord(&bp, &tt)) {
             delete [] tc_technology_name;
             tc_technology_name = tt;
+        }
+        return (TCmatch);
+    }
+    if (Matching(Tkw.Vendor())) {
+        char *tt;
+        const char *bp = tc_inbuf;
+        if (GetWord(&bp, &tt)) {
+            delete [] tc_vendor_name;
+            tc_vendor_name = tt;
+        }
+        return (TCmatch);
+    }
+    if (Matching(Tkw.Process())) {
+        char *tt;
+        const char *bp = tc_inbuf;
+        if (GetWord(&bp, &tt)) {
+            delete [] tc_process_name;
+            tc_process_name = tt;
         }
         return (TCmatch);
     }

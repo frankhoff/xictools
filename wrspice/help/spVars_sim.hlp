@@ -22,7 +22,7 @@ unused_vars
 syntax_vars
 
 
-!! format.tex 092716
+!! format.tex 011821
 !!KEYWORD
 options
 !!TITLE
@@ -207,6 +207,22 @@ options
     <tr><td><a href="xmu"><tt>xmu</tt></a></td>
       <td>The SPICE2 trapezoidal/Euler mixing parameter.</td></tr>
 
+    <tr><th colspan=2>Read-Only Real-Valued Parameters</th></tr>
+    <tr><td><tt>delta</tt></td>
+      <td>Transient analysis internal time step.</td></tr>
+    <tr><td><tt>fstart</tt></td>
+      <td>AC analysis start frequency.</td></tr>
+    <tr><td><tt>fstop</tt></td>
+      <td>AC analysis end frequency.</td></tr>
+    <tr><td><tt>maxdelta</tt></td>
+      <td>Transient analysis maximum internal time step.</td></tr>
+    <tr><td><tt>tstart</tt></td>
+      <td>Transient analysis start output time.</td></tr>
+    <tr><td><tt>tstep</tt></td>
+      <td>Transient analysis print increment.</td></tr>
+    <tr><td><tt>tstop</tt></td>
+      <td>Transient analysis final time.</td></tr>
+
     <tr><th colspan=2>Integer-Valued Parameters</th></tr>
     <tr><td><a href="bypass"><tt>bypass</tt></td>
       <td>Set to 0 to disable element computation bypassing.</td></tr>
@@ -240,6 +256,8 @@ options
       stepping.</td></tr>
     <tr><td><a href="srcsteps"><tt>itl6</tt></td>
       <td>An alias for <tt>srcsteps</tt>.</td></tr>
+    <tr><td><a href="vastep"><tt>vastep</tt></td>
+      <td>Verilog time step mapping.</td></tr>
 
     <tr><th colspan=2>Boolean Parameters</th></tr>
     <tr><td><a href="dcoddstep"><tt>dcoddstep</tt></a></td>
@@ -265,6 +283,8 @@ options
       <td>With Sparse solver, don't sort elements for cache locality.</td></tr>
     <tr><td><a href="noopiter"><tt>noopiter</tt></a></td>
       <td>Skip initial dc convergence attempt.</td></tr>
+    <tr><td><a href="nopmdc"><tt>nopmdc</tt></a></td>
+      <td>Do not allow phase-mode DC analysis.</td></tr>
     <tr><td><a href="noshellopts"><tt>noshellopts</tt></a></td>
       <td>Ignore circuit variables not set in <tt>.options</tt> line.</td></tr>
     <tr><td><a href="oldlimit"><tt>oldlimit</tt></a></td>
@@ -285,6 +305,8 @@ options
       <td>Enable compaction in LTRA (lossy transmission line) model.</td></tr>
     <tr><td><a href="useadjoint"><tt>useadjoint</tt></a></td>
       <td>Create an adjoint matric for BSIM device current monitoring.</td></tr>
+    <tr><td><a href="translate"><tt>translate</tt></a></td>
+      <td>Map node numbers into matrix assuming nodes are not compact.</td></tr>
 
     <tr><th colspan=2>String Parameters</th></tr>
     <tr><td><a href="method"><tt>method</tt></a></td>
@@ -299,6 +321,9 @@ options
     <tr><td><a href="steptype"><tt>steptype</tt></a></td>
       <td>Time advancement method: "<tt>interpolate</tt>" (default) or
       "<tt>hitusertp</tt>", "<tt>nousertp</tt>, "<tt>fixedstep</tt>".</td></tr>
+    <tr><td><a href="tjm_path"><tt>tjm_path</tt></a></td>
+      <td>Amplitude table file search path for Josephson junction
+      model.</td></tr>
 
     <tr><th colspan=2>Batch and Output Parameters</th></tr>
     <tr><td><a href="acct"><tt>acct</tt></a></td>
@@ -386,6 +411,7 @@ unused_vars
 !!REDIRECT loopthrds    sim_vars#loopthrds
 !!REDIRECT maxord       sim_vars#maxord
 !!REDIRECT srcsteps     sim_vars#srcsteps
+!!REDIRECT vastep       sim_vars#vastep
 
 !! booleans
 !!REDIRECT dcoddstep    sim_vars#dcoddstep
@@ -421,6 +447,7 @@ unused_vars
 !!REDIRECT hitusertp    sim_vars#steptype
 !!REDIRECT nousertp     sim_vars#steptype
 !!REDIRECT fixedstep    sim_vars#steptype
+!!REDIRECT tjm_path     sim_vars#tjm_path
 
 !! variables.tex 082015
 !!KEYWORD
@@ -1272,6 +1299,33 @@ Simulation Option Variables
     </table>
     </dl>
 
+!! 032420
+    <a name="vastep"></a>
+    <dl>
+    <dt><tt>vastep</tt><dd>
+    This option applies when a <a href=".verilog"><tt>.verilog</tt></a>
+    block is present, and
+    the Verilog simulation is run in parallel with transient analysis. 
+    Precisely how this occurs is controlled by this option.
+    The value is an unsigned integer.
+
+    <dl>
+    <dt>0<dd>
+    The Verilog simulation is advanced by calling the <a
+    href="vastep_cmd"><b>vastep</b></a> command, likely through a
+    callback function called from a <a href=".stop"><tt>.stop</b></a>
+    line.
+    </dl><dl>
+    <dt>1</tt> (the default)<dd>
+    The Verilog simulation is advanced at each transient analysis
+    time step.
+    </dl><dl>
+    <dt><i>X</i> (positive integer greater than 1)<dd>
+    The Verilog simulation is advanced after <i>X</i> transient time
+    steps.
+    </dl>
+    </dl>
+
     <h3>Boolean Parameters</h3>
 
 !! 082015
@@ -1934,6 +1988,18 @@ Simulation Option Variables
     </table>
     </dl>
 
+!! 011821
+    <a name="tjm_path"></a>
+    <dl>
+    <dt><tt>tjm_path</tt><dd>
+    This list variable provides the directories to search for tunnel
+    current amplitude tables created with the <a
+    href="mmjco.txt"><i>mmjco</i> utility</a> or equivalent, for use
+    in the microscopic <a href="jjmodel">Josephson junction</a> model. 
+    If not given, the search path is effectively "<tt>( . 
+    $HOME/.mmjco }</tt>".
+    </dl>
+
 !!SEEALSO
 variables
 batch_vars
@@ -2187,6 +2253,7 @@ Syntax Control Variables
     expanded by default, to save processing time and avoid unintended
     matches causing errors.  This variable can be set for backward
     compatibility, for files that actually used this feature.
+    </dl>
 
     <a name="plot_catchar"></a>
     <dl>
@@ -2273,7 +2340,7 @@ Syntax Control Variables
     <p>
     This variable can appear in a <a
     href=".options"><tt>.options</tt></a> line in SPICE input, where
-    is will set the concatenation character used for the circuit.  See
+    it will set the concatenation character used for the circuit.  See
     also the description of the <tt>subc_catmode</tt> variable below.
     </dl>
 

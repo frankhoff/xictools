@@ -263,7 +263,7 @@ cvofmt_t::cvofmt_t(void(*cb)(int), int init_format, cvofmt_mode fmtmode)
 
     GtkWidget *sb = sb_gdsunit.init(initd, 0.01, 100.0, 5);
     sb_gdsunit.connect_changed(GTK_SIGNAL_FUNC(fmt_val_changed), this);
-    gtk_widget_set_usize(sb, 100, -1);
+    gtk_widget_set_size_request(sb, 100, -1);
     gtk_box_pack_end(GTK_BOX(row), sb, false, false, 0);
 
     gtk_table_attach(GTK_TABLE(table), row, 0, 2, rcnt, rcnt+1,
@@ -1224,7 +1224,7 @@ void
 cvofmt_t::fmt_info_proc(GtkWidget*, void *arg)
 {
     cvINFO cv;
-    switch ((long)arg) {
+    switch ((intptr_t)arg) {
     case cvINFOnone:
         cv = cvINFOnone;
         break;

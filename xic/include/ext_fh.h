@@ -47,17 +47,27 @@
 #include "ext_fxunits.h"
 #include "ext_fxjob.h"
 
+
 //
 // Definitions for the "new" FastHenry interface.
 //
 
 // Variables
+#define VA_FhArgs               "FhArgs"
+#define VA_FhDefaults           "FhDefaults"
+#define VA_FhDefNhinc           "FhDefNhinc"
+#define VA_FhDefRh              "FhDefRh"
 #define VA_FhForeg              "FhForeg"
 #define VA_FhFreq               "FhFreq"
 #define VA_FhLayerName          "FhLayerName"
+#define VA_FhManhGridCnt        "FhManhGridCnt"
 #define VA_FhMonitor            "FhMonitor"
-#define VA_FhMinRectSize        "FhMinRectSize"
+#define VA_FhOverride           "FhOverride"
+#define VA_FhPath               "FhPath"
 #define VA_FhUnits              "FhUnits"
+#define VA_FhUseFilament        "FhUseFilament"
+#define VA_FhVolElEnable        "FhVolElEnable"
+#define VA_FhVolElMin           "FhVolElMin"
 #define VA_FhVolElTarget        "FhVolElTarget"
 
 // Debugging (undocumented)
@@ -66,13 +76,23 @@
 #define FH_LAYER_NAME           "FHRY"
 
 // Default partitioning params, microns
-#define FH_MIN_RECT_SIZE_DEF    1.0
-#define FH_MIN_RECT_SIZE_MIN    0.01
-#define FH_MIN_RECT_SIZE_MAX    10.0
+#define FH_MIN_MANH_GRID_CNT    1e2
+#define FH_MAX_MANH_GRID_CNT    1e5
+#define FH_DEF_MANH_GRID_CNT    1e3
 
-#define FH_MIN_TARG_VOLEL       1e2
-#define FH_MAX_TARG_VOLEL       1e5
-#define FH_DEF_TARG_VOLEL       1e3
+#define FH_MIN_DEF_NHINC        1
+#define FH_MAX_DEF_NHINC        20
+
+#define FH_MIN_DEF_RH           0.5
+#define FH_MAX_DEF_RH           4.0
+
+#define FH_MIN_VOLEL_MIN        0.0
+#define FH_MAX_VOLEL_MIN        1.0
+#define FH_DEF_VOLEL_MIN        0.1
+
+#define FH_MIN_VOLEL_TARG       1e2
+#define FH_MAX_VOLEL_TARG       1e5
+#define FH_DEF_VOLEL_TARG       1e3
 
 // File extensions
 #define FH_INP_SFX              "inp"
@@ -112,6 +132,7 @@ struct fhNode
     const xyz3d *loc()              const { return (&n_loc); }
 
     fhNode *next()                  const { return (n_next); }
+    void set_next(fhNode *n)        { n_next = n; }
 
 private:
     unsigned int n_num_and_ref;
@@ -140,20 +161,27 @@ struct fhNodeList
     fhNodeList *next;
 };
 
-#define FH_NDHASHW 91
+// Initial node hashing bit count, dynamically increases with table size.
+#define FH_NDHASHW 6
 
 struct fhNodeGen
 {
     fhNodeGen()
         {
-            ng_ncnt = 1;
-            memset(ng_tab, 0, FH_NDHASHW*sizeof(fhNode*));
+            ng_allocated = 0;
+            ng_mask = ~((unsigned int)-1 << FH_NDHASHW);
+            ng_tab = new fhNode*[ng_mask+1];
+            memset(ng_tab, 0, (ng_mask+1)*sizeof(fhNode*));
         }
 
     ~fhNodeGen()
         {
-            clear();
+            for (unsigned int i = 0; i <= ng_mask; i++)
+                fhNode::destroy(ng_tab[i]);
+            delete [] ng_tab;
         }
+
+    unsigned int allocated()    { return (ng_allocated); }
 
     int newnode(xyz3d*);
     void nodeBB(BBox*) const;
@@ -163,8 +191,11 @@ struct fhNodeGen
     void clear();
 
 private:
-    int ng_ncnt;
-    fhNode *ng_tab[FH_NDHASHW];
+    void rehash();
+
+    fhNode **ng_tab;
+    unsigned int ng_allocated;
+    unsigned int ng_mask;
 };
 
 struct fhSegment
@@ -297,6 +328,7 @@ struct fhConductor
             hc_group = g;
             hc_layer_ix = lix;
             hc_sigma = 0.0;
+            hc_tau = 0.0;
             hc_lambda = 0.0;
             hc_segments = 0;
         }
@@ -325,15 +357,14 @@ struct fhConductor
     static fhConductor *addz3d(fhConductor*, const glZoid3d*);
     fhNodeList *get_nodes(const fhNodeGen&, int, const Point*);
     void segmentize(fhNodeGen&);
-    fhSegment *find_segment_by_node(int);
-    int segments_print(FILE*, e_unit, const fhNodeGen*);
+    int segments_print(FILE*, e_unit, const fhLayout*);
     bool refine(const BBox*);
     PolyList *polylist();
     void accum_points(SymTab*, SymTab*);
     void accum_points_z(SymTab*);
     bool split(int*, int, int*, int);
     bool split_z(int*, int);
-    void save_zlist_db();
+    void save_dbg_zlist();
 
     void set_zlist3d_ref(glZlistRef3d *z)   { hc_zlist3d_ref = z; }
     void set_zlist3d(glZlist3d *z)          { hc_zlist3d = z; }
@@ -341,15 +372,14 @@ struct fhConductor
     glZlistRef3d *zlist3d_ref() const { return (hc_zlist3d_ref); }
     glZlist3d *zlist3d()        const { return (hc_zlist3d); }
 
-    void set_siglam(double s, double l)
-        {
-            hc_sigma = s;
-            hc_lambda = l;
-        }
+    void set_sigma(double d)    { hc_sigma = d; }
+    void set_tau(double d)      { hc_tau = d; }
+    void set_lambda(double d)   { hc_lambda = d; }
 
     int group()                 const { return (hc_group); }
     int layer_index()           const { return (hc_layer_ix); }
     double sigma()              const { return (hc_sigma); }
+    double tau()                const { return (hc_tau); }
     double lambda()             const { return (hc_lambda); }
 
     void set_next(fhConductor *n)     { hc_next = n; }
@@ -362,6 +392,7 @@ private:
     int hc_group;               // conductor group
     int hc_layer_ix;            // layer index
     double hc_sigma;            // conductivity
+    double hc_tau;              // Drude relaxation time
     double hc_lambda;           // penetration depth
     fhSegment *hc_segments;     // segment list
 };
@@ -371,11 +402,22 @@ struct fhLayer
     fhLayer()
         {
             fl_list = 0;
+            fl_l3d = 0;
         }
 
     ~fhLayer()
         {
             fhConductor::destroy(fl_list);
+        }
+
+    void set_layer(Layer3d *l)
+        {
+            fl_l3d = l;
+        }
+
+    Layer3d *layer()
+        {
+            return (fl_l3d);
         }
 
     void clear_list()
@@ -397,6 +439,7 @@ struct fhLayer
 
 private:
     fhConductor *fl_list;   // conductors on this layer
+    Layer3d *fl_l3d;        // back pointer to layer
 };
 
 struct fhLayout : public Ldb3d
@@ -416,11 +459,14 @@ struct fhLayout : public Ldb3d
     bool setup();
     bool fh_dump(FILE*);
 
-    fhLayer *fhlayers()             { return (fhl_layers); }
-    fhTermList **terms()            { return (fhl_terms); }
+    static void clear_dbg_zlist();
+
+    fhLayer *fhlayers()             const { return (fhl_layers); }
+    fhTermList **terms()            const { return (fhl_terms); }
+    const fhNodeGen *nodes()        const { return (&fhl_ngen); }
 
 private:
-    void slice_groups(int);
+    void slice_groups(int, int);
     void slice_groups_z(int);
     fhConductor *find_conductor(int, int);
     void add_terminal(const Poly*, const char*, const char*, int, int);

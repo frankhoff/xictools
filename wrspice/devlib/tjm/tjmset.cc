@@ -75,8 +75,8 @@
 #define Ic      1e-3        // Assumed Ic of reference, A
 #define IcMin   1e-9        // Min reference Ic, A
 #define IcMax   1e-1        // Max referenct Ic, A
-#define IcsMin  Icrit/20    // Min instance Ic, A
-#define IcsMax  Icrit*20    // Max instance Ic, A
+#define IcsMin  Icrit/50    // Min instance Ic, A
+#define IcsMax  Icrit*50    // Max instance Ic, A
 #define Vg      2.6e-3      // Assumed Vgap of reference, V
 #define VgMin   0.1e-3      // Min Vgap, V
 #define VgMax   10.0e-3     // Max Vgap, V
@@ -252,11 +252,21 @@ TJMdev::setup(sGENmodel *genmod, sCKT *ckt, int *states)
             model->TJMvm = Vm;
         }
         else {
-            if (model->TJMvm < VmMin || model->TJMvm > VmMax) {
-                DVO.textOut(OUT_WARNING,
-                    "%s: VM=%g out of range [%g-%g], reset to %g.\n",
-                    model->GENmodName, model->TJMvm, VmMin, VmMax, Vm);
-                model->TJMvm = Vm;
+            if (model->TJMforceGiven) {
+                if (model->TJMvm <= 0.0) {
+                    DVO.textOut(OUT_WARNING,
+                        "%s: VM=%g zero or negative, reset to %g.\n",
+                        model->GENmodName, model->TJMvm, Vm);
+                    model->TJMvm = Vm;
+                }
+            }
+            else {
+                if (model->TJMvm < VmMin || model->TJMvm > VmMax) {
+                    DVO.textOut(OUT_WARNING,
+                        "%s: VM=%g out of range [%g-%g], reset to %g.\n",
+                        model->GENmodName, model->TJMvm, VmMin, VmMax, Vm);
+                    model->TJMvm = Vm;
+                }
             }
         }
 
@@ -265,15 +275,27 @@ TJMdev::setup(sGENmodel *genmod, sCKT *ckt, int *states)
             model->TJMr0 = model->TJMvm/i;
         }
         else {
-            double i = model->TJMcriti > 0.0 ? model->TJMcriti : 1e-3;
-            double R0min = VmMin/i;
-            double R0max = VmMax/i;
-            if (model->TJMr0 < R0min || model->TJMr0 > R0max) {
-                double R0 = model->TJMvm/i;
-                DVO.textOut(OUT_WARNING,
-                    "%s: RSUB=%g out of range [%g-%g], reset to %g.\n",
-                    model->GENmodName, model->TJMr0, R0min, R0max, R0);
-                model->TJMr0 = R0;
+            if (model->TJMforceGiven) {
+                if (model->TJMr0 <= 0.0) {
+                    double i = model->TJMcriti > 0.0 ? model->TJMcriti : 1e-3;
+                    double R0 = model->TJMvm/i;
+                    DVO.textOut(OUT_WARNING,
+                        "%s: RSUB=%g zero or negative, reset to %g.\n",
+                        model->GENmodName, model->TJMr0, R0);
+                    model->TJMr0 = R0;
+                }
+            }
+            else {
+                double i = model->TJMcriti > 0.0 ? model->TJMcriti : 1e-3;
+                double R0min = VmMin/i;
+                double R0max = VmMax/i;
+                if (model->TJMr0 < R0min || model->TJMr0 > R0max) {
+                    double R0 = model->TJMvm/i;
+                    DVO.textOut(OUT_WARNING,
+                        "%s: RSUB=%g out of range [%g-%g], reset to %g.\n",
+                        model->GENmodName, model->TJMr0, R0min, R0max, R0);
+                    model->TJMr0 = R0;
+                }
             }
         }
 
@@ -401,7 +423,7 @@ TJMdev::setup(sGENmodel *genmod, sCKT *ckt, int *states)
             }
 #endif
             inst->TJMgqp = inst->TJMg0;
-            if (model->TJMvShuntGiven) {
+            if (model->TJMvShuntGiven && model->TJMvShunt > 0.0) {
                 double gshunt = inst->TJMcriti/model->TJMvShunt - inst->TJMgqp;
                 if (gshunt > 0.0)
                     inst->TJMgshunt = gshunt;
@@ -557,14 +579,14 @@ sTJMmodel::tjm_init()
         // ERROR
         return (E_PANIC);
     }
-    tjm_narray = cs->cfs_size;
-    tjm_A = new IFcomplex[3*tjm_narray];
+    tjm_narray = cs->size();
+    tjm_p = new IFcomplex[3*tjm_narray];
+    tjm_A = tjm_p + tjm_narray;
     tjm_B = tjm_A + tjm_narray;
-    tjm_P = tjm_B + tjm_narray;
     for (int i = 0; i < tjm_narray; i++) {
-        tjm_A[i] = cs->cfs_A[i];
-        tjm_B[i] = cs->cfs_B[i];
-        tjm_P[i] = cs->cfs_P[i];
+        tjm_p[i] = cs->p()[i];
+        tjm_A[i] = cs->A()[i];
+        tjm_B[i] = cs->B()[i];
     }
 
     double omega_g = 0.5*TJMvg/PHI0_2PI;  // e*Vg = hbar*omega_g
@@ -572,7 +594,7 @@ sTJMmodel::tjm_init()
 
     double rejpt = 0.0;
     for (int i = 0; i < tjm_narray; i++)
-        rejpt -= (tjm_A[i]/tjm_P[i]).real;
+        rejpt -= (tjm_A[i]/tjm_p[i]).real;
     rejpt *= TJMicFactor;
     tjm_kgap_rejpt = tjm_kgap/rejpt;
     tjm_alphaN = 1.0/(2*rejpt*tjm_kgap);
@@ -581,8 +603,8 @@ sTJMmodel::tjm_init()
     // we want to preserve the pair and qp amplitudes for separate
     // access.
     for (int i = 0; i < tjm_narray; i++) {
-        tjm_A[i] = (TJMicFactor*tjm_A[i]) / (-tjm_kgap*tjm_P[i]);
-        tjm_B[i] = (tjm_B[i]) / (-tjm_kgap*tjm_P[i]);
+        tjm_A[i] = (TJMicFactor*tjm_A[i]) / (-tjm_kgap*tjm_p[i]);
+        tjm_B[i] = (tjm_B[i]) / (-tjm_kgap*tjm_p[i]);
     }
     return (OK);
 }

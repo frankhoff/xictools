@@ -47,6 +47,7 @@ Authors: 1985 Wayne A. Christopher
 
 #include "spglobal.h"
 #include <errno.h>
+#include <stdint.h>
 #include "simulator.h"
 #include "runop.h"
 #include "circuit.h"
@@ -98,7 +99,7 @@ struct sLibMap
 
     ~sLibMap();
 
-    long find(const char*, const char*);
+    intptr_t find(const char*, const char*);
 
 private:
     sHtab *map_lib(FILE*);
@@ -869,8 +870,20 @@ IFsimulator::DeckSource(sLine *deck, bool nospice, bool nocmds,
     Tvals tv;
     tv.start();
     bool bad_deck = false;
+
+    /*  XXX Keep as-is for now
+    // If there is no circuit, treat controls as execs.  The
+    // difference is that execs create a new "exec" plot and save new
+    // vectors in it, controls save new vectors in the constants plot.
+    if (nospice || !deck->is_ckt()) {
+        if (controls && !execs)
+            execs = controls;
+            controls = 0;
+    }
+    */
+
     sFtCirc *ct = SpDeck(deck, filename, execs, wordlist::copy(controls), vblk,
-        nospice, false, &bad_deck);
+        nospice, noexec, &bad_deck);
     tv.stop();
     if (ft_flags[FT_SIMDB])
         GRpkgIf()->ErrPrintf(ET_MSGS, "Total time to source input: %g.\n",
@@ -887,7 +900,7 @@ IFsimulator::DeckSource(sLine *deck, bool nospice, bool nocmds,
         return;
     }
 
-    if (postrun) {
+    if (postrun && ct) {
         // Parameter expand and apply the post-run block.
         for (wordlist *wl = postrun; wl; wl = wl->wl_next)
             ct->params()->param_subst_all(&wl->wl_word);
@@ -901,8 +914,11 @@ IFsimulator::DeckSource(sLine *deck, bool nospice, bool nocmds,
             for (wordlist *wl = controls; wl; wl = wl->wl_next)
                 ct->params()->param_subst_all(&wl->wl_word);
         }
-        if (!nocmds || nospice)
+        if (!nocmds || nospice) {
+            ControlsPush();
             ExecCmds(controls);
+            ControlsPop();
+        }
     }
     wordlist::destroy(controls);
 
@@ -950,30 +966,53 @@ IFsimulator::SpDeck(sLine *deck, const char *filename, wordlist *execs,
     // The conditionals have already been processed and removed.  This
     // builds a param table from the existing lines.
     sParamTab *ptab = new sParamTab;
-    ptab = deck->process_conditionals(ptab);
+    if (deck)
+        ptab = deck->process_conditionals(ptab);
     ptab->define_macros(true);
+    for (wordlist *wl = execs; wl; wl = wl->wl_next)
+        ptab->param_subst_all(&wl->wl_word);
 
+#define EXECPLOTNAME "exec"
     // If execs, run them now, after parameter expanding.
     sPlot *pl_ex = 0;
     char tpname[64];
     if (execs && !noexec) {
-        wordlist *wx = wordlist::copy(execs);
-        if (ptab) {
-            // Parameter expand the .exec lines.
-            for (wordlist *wl = wx; wl; wl = wl->wl_next)
-                ptab->param_subst_all(&wl->wl_word);
-        }
-        strcpy(tpname, OP.curPlot()->type_name());
         // Run the execs (before source).
+
+        strcpy(tpname, OP.curPlot()->type_name());
         // Set up a temporary plot for vectors defined in the exec
         // block that might be needed in the circuit.
-        pl_ex = new sPlot("exec");
-        pl_ex->new_plot();
-        OP.setCurPlot(pl_ex);
-        pl_ex->set_circuit(ft_curckt->name());
-        pl_ex->set_title(ft_curckt->name());
-        ExecCmds(wx);
-        wordlist::destroy(wx);
+        if (lstring::ciprefix(EXECPLOTNAME, tpname)) {
+            // Reuse present plot so can source more than one exec
+            // block, and all assignments will be found in one plot.
+            pl_ex = OP.curPlot();
+        }
+        if (!pl_ex) {
+            pl_ex = new sPlot(EXECPLOTNAME);
+            pl_ex->new_plot();
+            pl_ex->set_circuit(ft_curckt->name());
+            pl_ex->set_title(ft_curckt->name());
+            OP.setCurPlot(pl_ex);
+        }
+
+        ExecsPush();
+        ExecCmds(execs);
+        ExecsPop();
+
+        // This is subtle.  Suppose that there are lines like "param
+        // p1 = $val" and that the execs contain "set val = 10".  At
+        // this point, we need to update the parameters, before we do
+        // the parameter expand in subcircuit expansion, otherwise
+        // we get unexpanded shell variables in the netlist.
+
+        for (sLine *dd = deck->next(); dd; dd = dd->next()) {
+            if (lstring::cimatch(PARAM_KW, dd->line())) {
+                if (strchr(dd->line(), '$')) {
+                    dd->var_subst();
+                    ptab = sParamTab::extract_params(ptab, dd->line());
+                }
+            }
+        }
 
         // Still in list? may have been destroyed.
         sPlot *px = OP.plotList();
@@ -1542,7 +1581,7 @@ IFsimulator::ReadDeck(FILE *fp, char *title, bool *err, sParamTab **ptab,
                         return (0);
                     }
                 }
-                long offs = LibMap->find(file, name);
+                intptr_t offs = LibMap->find(file, name);
                 if (offs == LM_NO_NAME) {
                     GRpkgIf()->ErrPrintf(ET_ERROR,
                         "block %s not found in library %s.\n", name, file);
@@ -1823,6 +1862,9 @@ void
 sFtCirc::setup(sLine *spdeck, const char *fname, wordlist *exec,
     wordlist *ctrl, sLine *vlog, sParamTab *ptab)
 {
+    if (!spdeck)
+        return;
+
     ci_descr = lstring::copy(spdeck->line());
     ci_verilog = vlog;
     ci_params = ptab;
@@ -2536,7 +2578,7 @@ sLine *
 sLine::extract_verilog()
 {
     sLine *dp = this;
-    sLine *start = 0, *vl = 0, *vl0 = 0;;
+    sLine *start = 0, *vl = 0, *vl0 = 0;
     sLine *ad0 = 0, *ad = 0;
     bool inblk = false;
     for (sLine *d = li_next; d; dp = d, d = d->li_next) {
@@ -2759,13 +2801,14 @@ sLine::process_conditionals(sParamTab *ptab)
         }
 
         else if (lstring::cimatch(IF_KW, dd->li_line)) {
-            if (ptab)
-                ptab->param_subst_all(&dd->li_line);
-            if (strchr(dd->li_line, '$'))
-                dd->var_subst();
             inif++;
 
             if (!blhead) {
+                if (ptab)
+                    ptab->param_subst_all(&dd->li_line);
+                if (strchr(dd->li_line, '$'))
+                    dd->var_subst();
+
                 ifcx = new ifel(ifcx, inif);
                 if (istrue(dd->li_line)) {
                     ifcx->btaken = true;
@@ -2778,13 +2821,15 @@ sLine::process_conditionals(sParamTab *ptab)
         }
         else if (lstring::cimatch(ELIF_KW, dd->li_line) ||
                 lstring::cimatch(ELSEIF_KW, dd->li_line)) {
-            if (ptab)
-                ptab->param_subst_all(&dd->li_line);
-            if (strchr(dd->li_line, '$'))
-                dd->var_subst();
             if (!inif)
                 err_msg(dd, ELIF_KW " or " ELSEIF_KW);
             else if (inif == ifcx->blev) {
+                if (!blhead || !ifcx->btaken) {
+                    if (ptab)
+                        ptab->param_subst_all(&dd->li_line);
+                    if (strchr(dd->li_line, '$'))
+                        dd->var_subst();
+                }
                 if (!blhead)
                     blhead = dp;
                 else if (!ifcx->btaken && istrue(dd->li_line)) {
@@ -2875,7 +2920,7 @@ sLibMap::~sLibMap()
 //
 // The file is a bare file name, and we have chdir'ed to its directory.
 //
-long
+intptr_t
 sLibMap::find(const char *file, const char *name)
 {
     if (!file)
@@ -2909,7 +2954,7 @@ sLibMap::find(const char *file, const char *name)
     ent = sHtab::get_ent(h, name);
     if (!ent)
         return (LM_NO_NAME);
-    return ((long)ent->data());
+    return ((intptr_t)ent->data());
 }
 
 
@@ -2961,7 +3006,7 @@ sLibMap::map_lib(FILE *fp)
                     t++;
                 *t = 0;
                 if (t > s) {
-                    unsigned long offs = ftell(fp);
+                    intptr_t offs = ftell(fp);
                     h->add(s, (void*)offs);
                 }
             }

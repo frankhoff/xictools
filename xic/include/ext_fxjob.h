@@ -48,12 +48,6 @@
 // Job Control for Fast[er]Cap/FastHenry interface
 //------------------------------------------------------------------------
 
-
-#define VA_FcPath               "FcPath"
-#define VA_FcArgs               "FcArgs"
-#define VA_FhPath               "FhPath"
-#define VA_FhArgs               "FhArgs"
-
 // Default dataset name
 #define DEF_DATASET "unnamed"
 

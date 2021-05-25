@@ -331,7 +331,8 @@ sSC::sSC(stringlist *l, bool(*s)(const char*))
     else if (ww > 600)
         ww = 600;
     ww += 15;  // scrollbar
-    gtk_widget_set_usize(GTK_WIDGET(wb_textarea), ww, -1);
+    int hh = 8*GTKfont::stringHeight(wb_textarea, 0);
+    gtk_widget_set_size_request(GTK_WIDGET(wb_textarea), ww, hh);
 
     // The font change pop-up uses this to redraw the widget
     gtk_object_set_data(GTK_OBJECT(wb_textarea), "font_changed",
@@ -445,7 +446,7 @@ sSC::sc_btn_proc(GtkWidget*, void *client_data)
 {
     if (!SC)
         return;
-    int mode = (long)client_data;
+    int mode = (intptr_t)client_data;
     if (mode == sc_save) {
         for (s_item *s = SC->sc_list; s->name; s++)
             s->save = true;

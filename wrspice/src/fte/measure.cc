@@ -69,6 +69,7 @@ namespace {
     // Private keywords
     const char *mkw_trig        = "trig";
     const char *mkw_targ        = "targ";
+    const char *mkw_repeat      = "repeat";
     const char *mkw_val         = "val";
     const char *mkw_td          = "td";
     const char *mkw_ts          = "ts";
@@ -97,7 +98,7 @@ namespace {
     const char *mkw_strobe      = "strobe";
 }
 
-/*XXX ideas
+/***************** XXX ideas
 resolve measure names in the current circuit in expressions as binary tokens,
 true if measure done. name[index] resoves to result of index'th meeasure.
 No, resolve as scale start before, measure scale val after.  ?mname resolve
@@ -127,30 +128,388 @@ to vector.
 
 new type:  if expr
 evaluate expr at prev point set false if not true
-*/
+
+Do we enforce time sequencing of the list?
+Issue:  .stop tran at 100p when expr
+Assume expr goes positive at 50p but returns to 0 before 100p, the when
+clause will be true, and the stop will occur at 100p.  Would it make more
+sense to wait for 100ps to test expr?
+
+implement:
+The time at found_local implicitly added to the delay of conj!
+
+*********************************/
 
 void
-sMfunc::print(sLstr &lstr)
+sMfunc::print(sLstr *plstr)
 {
-    lstr.add_c(' ');
-    if (f_type == Mmin)
-        lstr.add(mkw_min);
-    else if (f_type == Mmax)
-        lstr.add(mkw_max);
-    else if (f_type == Mpp)
-        lstr.add(mkw_pp);
-    else if (f_type == Mavg)
-        lstr.add(mkw_avg);
-    else if (f_type == Mrms)
-        lstr.add(mkw_rms);
-    else if (f_type == Mpw)
-        lstr.add(mkw_pw);
-    else if (f_type == Mrft)
-        lstr.add(mkw_rt);
-    else if (f_type == Mfind)
-        lstr.add(mkw_find);
-    lstr.add_c(' ');
-    lstr.add(f_expr);
+    if (plstr) {
+        plstr->add_c(' ');
+        if (f_type == Mmin)
+            plstr->add(mkw_min);
+        else if (f_type == Mmax)
+            plstr->add(mkw_max);
+        else if (f_type == Mpp)
+            plstr->add(mkw_pp);
+        else if (f_type == Mavg)
+            plstr->add(mkw_avg);
+        else if (f_type == Mrms)
+            plstr->add(mkw_rms);
+        else if (f_type == Mpw)
+            plstr->add(mkw_pw);
+        else if (f_type == Mrft)
+            plstr->add(mkw_rt);
+        else if (f_type == Mfind)
+            plstr->add(mkw_find);
+        plstr->add_c(' ');
+        plstr->add(f_expr);
+    }
+}
+
+
+// Find the maximum of dv over the interval.
+//
+bool
+sMfunc::mmin(sDataVec *dv, int ixmin, int ixmax,
+    double *startval, double *endval)
+{
+    if (dv->length() == 1) {
+        f_val = dv->realval(0);
+        return (true);
+    }
+    double mn = dv->realval(ixmin);
+    for (int i = ixmin+1; i <= ixmax; i++) {
+        if (dv->realval(i) < mn)
+            mn = dv->realval(i);
+    }
+    if (startval) {
+        if (*startval < mn)
+            mn = *startval;
+    }
+    if (endval) {
+        if (*endval < mn)
+            mn = *endval;
+    }
+    f_val = mn;
+    return (true);
+}
+
+
+// Find the maximum of dv over the interval.
+//
+bool
+sMfunc::mmax(sDataVec *dv, int ixmin, int ixmax,
+    double *startval, double *endval)
+{
+    if (dv->length() == 1) {
+        f_val = dv->realval(0);
+        return (true);
+    }
+    double mx = dv->realval(ixmin);
+    for (int i = ixmin+1; i <= ixmax; i++) {
+        if (dv->realval(i) > mx)
+            mx = dv->realval(i);
+    }
+    if (startval) {
+        if (*startval > mx)
+            mx = *startval;
+    }
+    if (endval) {
+        if (*endval > mx)
+            mx = *endval;
+    }
+    f_val = mx;
+    return (true);
+}
+
+
+// Find the maximum minus minimum of dv over the interval.
+//
+bool
+sMfunc::mpp(sDataVec *dv, int ixmin, int ixmax,
+    double *startval, double *endval)
+{
+    if (dv->length() == 1) {
+        f_val = 0.0;
+        return (true);
+    }
+    double mn = dv->realval(ixmin);
+    double mx = mn;
+    for (int i = ixmin+1; i <= ixmax; i++) {
+        if (dv->realval(i) < mn)
+            mn = dv->realval(i);
+        else if (dv->realval(i) > mx)
+            mx = dv->realval(i);
+    }
+    if (startval) {
+        if (*startval > mx)
+            mx = *startval;
+        else if (*startval < mn)
+            mn = *startval;
+    }
+    if (endval) {
+        if (*endval > mx)
+            mx = *endval;
+        else if (*endval < mn)
+            mn = *endval;
+    }
+    f_val = mx - mn;
+    return (true);
+}
+
+
+// Find the average of dv over the interval.  We use trapezoid
+// integration and divide by the scale interval.
+//
+bool
+sMfunc::mavg(sDataVec *dv, int ixmin, int ixmax,
+    double *startval, double *endval)
+{
+    if (dv->length() == 1) {
+        f_val = dv->realval(0);
+        return (true);
+    }
+
+    sDataVec *xs = dv->scale();
+    if (!xs) {
+        f_val = 0.0;
+        return (true);
+    }
+
+    double sum = 0.0;
+    double d, delt;
+    // compute the sum over the scale intervals
+    int i;
+    for (i = ixmin+1; i <= ixmax; i++) {
+        delt = xs->realval(i) - xs->realval(i-1);
+        sum += 0.5*delt*(dv->realval(i-1) + dv->realval(i));
+    }
+
+    // *startval is ahead of the start index (between i-1 and i)
+    if (startval) {
+        delt = xs->realval(ixmin) - *startval;
+        if (delt != 0) {
+            i = ixmin;
+            d = dv->realval(i) + (dv->realval(i-1) - dv->realval(i))*
+                (*startval - xs->realval(ixmin))/
+                (xs->realval(i-1) - xs->realval(i));
+            sum += 0.5*delt*(d + dv->realval(i));
+        }
+    }
+
+    // *endval is behind the end index
+    if (endval) {
+        delt = *endval - xs->realval(ixmax);
+        if (delt != 0.0) {
+            i = ixmax;
+            d = dv->realval(i) + (dv->realval(i+1) - dv->realval(i))*
+                (*endval - xs->realval(ixmax))/
+                (xs->realval(i+1) - xs->realval(i));
+            sum += 0.5*delt*(d + dv->realval(i));
+        }
+    }
+
+    double tstart = startval ? *startval : xs->realval(ixmin);
+    double tend = endval ? *endval : xs->realval(ixmax);
+    double dt = tend - tstart;
+    if (dt != 0.0)
+        sum /= dt;
+    f_val = sum;
+    return (true);
+}
+
+
+// Find the rms of dv over the interval.  We use trapezoid
+// integration of the magnitudes.
+//
+bool
+sMfunc::mrms(sDataVec *dv, int ixmin, int ixmax,
+    double *startval, double *endval)
+{
+    if (dv->length() == 1) {
+        f_val = dv->realval(0);
+        return (true);
+    }
+
+    sDataVec *xs = dv->scale();
+    if (!xs) {
+        f_val = 0.0;
+        return (true);
+    }
+
+    double sum = 0.0;
+    double d, delt;
+    // compute the sum over the scale intervals
+    int i;
+    for (i = ixmin+1; i <= ixmax; i++) {
+        delt = xs->realval(i) - xs->realval(i-1);
+        sum += 0.5*delt*(dv->realval(i-1)*dv->realval(i-1) +
+            dv->realval(i)*dv->realval(i));
+    }
+
+    // *startval is ahead of the start index
+    if (startval) {
+        delt = xs->realval(ixmin) - *startval;
+        if (delt != 0.0) {
+            i = ixmin;
+            d = dv->realval(i) + (dv->realval(i-1) - dv->realval(i))*
+                (*startval - xs->realval(ixmin))/
+                (xs->realval(i-1) - xs->realval(i));
+            sum += 0.5*delt*(d*d + dv->realval(i)*dv->realval(i));
+        }
+    }
+
+    // *endval is behind the end index
+    if (endval) {
+        delt = *endval - xs->realval(ixmax);
+        if (delt != 0.0) {
+            i = ixmax;
+            d = dv->realval(i) + (dv->realval(i+1) - dv->realval(i))*
+                (*endval - xs->realval(ixmax))/
+                (xs->realval(i+1) - xs->realval(i));
+            sum += 0.5*delt*(d*d + dv->realval(i)*dv->realval(i));
+        }
+    }
+
+    double tstart = startval ? *startval : xs->realval(ixmin);
+    double tend = endval ? *endval : xs->realval(ixmax);
+    double dt = tend - tstart;
+    if (dt != 0.0)
+        sum /= dt;
+    f_val = sqrt(fabs(sum));
+    return (true);
+}
+
+
+// Find the fwhm of a pulse assumed to be contained in the interval.
+//
+bool
+sMfunc::mpw(sDataVec *dv, int ixmin, int ixmax,
+    double *startval, double *endval)
+{
+    if (dv->length() == 1) {
+        f_val = 0.0;
+        return (true);
+    }
+
+    sDataVec *xs = dv->scale();
+    if (!xs) {
+        f_val = 0.0;
+        return (true);
+    }
+
+    // find the max/min
+    double mx = dv->realval(ixmin);
+    double mn = mx;
+    int imx = -1;
+    int imn = -1;
+    for (int i = ixmin+1; i <= ixmax; i++) {
+        if (dv->realval(i) > mx) {
+            mx = dv->realval(i);
+            imx = i;
+        }
+        if (dv->realval(i) < mn) {
+            mn = dv->realval(i);
+            imn = i;
+        }
+    }
+    double ds = startval ? *startval : dv->realval(ixmin);
+    double de = endval ? *endval : dv->realval(ixmax);
+    double mid;
+    int imid;
+    if (mx - SPMAX(ds, de) > SPMIN(ds, de) - mn) {
+        mid = 0.5*(mx + SPMAX(ds, de));
+        imid = imx;
+    }
+    else {
+        mid = 0.5*(mn + SPMIN(ds, de));
+        imid = imn;
+    }
+
+    int ibeg = -1, iend = -1;
+    for (int i = ixmin + 1; i <= ixmax; i++) {
+        if ((dv->realval(i-1) < mid && dv->realval(i) >= mid) ||
+                (dv->realval(i-1) > mid && dv->realval(i) <= mid)) {
+            if (ibeg >= 0)
+                iend = i;
+            else
+                ibeg = i;
+        }
+        if (ibeg >=0 && iend >= 0)
+            break;
+    }
+    if (ibeg >= 0 && iend >= 0 && ibeg < imid && iend > imid) {
+        double x0 = xs->realval(ibeg-1);
+        double x1 = xs->realval(ibeg);
+        double y0 = dv->realval(ibeg-1);
+        double y1 = dv->realval(ibeg);
+        double tbeg = x0 + (x1 - x0)*(mid - y0)/(y1 - y0);
+        x0 = xs->realval(iend-1);
+        x1 = xs->realval(iend);
+        y0 = dv->realval(iend-1);
+        y1 = dv->realval(iend);
+        double tend = x0 + (x1 - x0)*(mid - y0)/(y1 - y0);
+        f_val = tend - tbeg;
+    }
+    else
+        f_val = 0.0;
+    return (true);
+}
+
+
+// Find the 10-90% rise or fall time of an edge contained in the
+// interval.
+//
+bool
+sMfunc::mrft(sDataVec *dv, int ixmin, int ixmax,
+    double *startval, double *endval)
+{
+    if (dv->length() == 1) {
+        f_val = 0.0;
+        return (true);
+    }
+
+    sDataVec *xs = dv->scale();
+    if (!xs) {
+        f_val = 0.0;
+        return (true);
+    }
+
+    double vstart = startval ? *startval : dv->realval(ixmin);
+    double vend = endval ? *endval : dv->realval(ixmax);
+    double th1 = vstart + 0.1*(vend - vstart);
+    double th2 = vstart + 0.9*(vend - vstart);
+
+    int ibeg = -1, iend = -1;
+    for (int i = ixmin + 1; i <= ixmax; i++) {
+        if ((dv->realval(i-1) < th1 && dv->realval(i) >= th1) ||
+                (dv->realval(i-1) > th1 && dv->realval(i) <= th1) ||
+                (dv->realval(i-1) < th2 && dv->realval(i) >= th2) ||
+                (dv->realval(i-1) > th2 && dv->realval(i) <= th2)) {
+            if (ibeg >= 0)
+                iend = i;
+            else
+                ibeg = i;
+        }
+        if (ibeg >=0 && iend >= 0)
+            break;
+    }
+    if (ibeg >= 0 && iend >= 0 && iend > ibeg) {
+        double x0 = xs->realval(ibeg-1);
+        double x1 = xs->realval(ibeg);
+        double y0 = dv->realval(ibeg-1);
+        double y1 = dv->realval(ibeg);
+        double tbeg = x0 + (x1 - x0)*(th1 - y0)/(y1 - y0);
+        x0 = xs->realval(iend-1);
+        x1 = xs->realval(iend);
+        y0 = dv->realval(iend-1);
+        y1 = dv->realval(iend);
+        double tend = x0 + (x1 - x0)*(th2 - y0)/(y1 - y0);
+        f_val = tend - tbeg;
+    }
+    else
+        f_val = 0.0;
+    return (true);
 }
 // End of sMfunc functions.
 
@@ -261,7 +620,7 @@ namespace {
         return (t);
     }
 
-    // Return a double found after '=', set err if problems.
+    // Return a double found after optional '=', set err if problems.
     //
     double gval(const char **s, bool *err)
     {
@@ -325,6 +684,7 @@ namespace {
         if (lstring::cieq(s, kw_when)) return (true);
         if (lstring::cieq(s, mkw_trig)) return (true);
         if (lstring::cieq(s, mkw_targ)) return (true);
+        if (lstring::cieq(s, mkw_repeat)) return (true);
         if (lstring::cieq(s, mkw_val)) return (true);
         if (lstring::cieq(s, mkw_td)) return (true);
         if (lstring::cieq(s, mkw_ts)) return (true);
@@ -561,7 +921,7 @@ sMpoint::parse(const char **pstr, char **errstr, const char *kw)
     }
     if (!t_tree2) {
         if (t_tree1) {
-            if (t_tree1->is_const()) {
+            if (t_tree1->is_constant()) {
                 // numeric or constant expression
                 t_type = MPnum;
                 sDataVec *dv = eval1();
@@ -693,7 +1053,7 @@ sMpoint::parse(const char **pstr, char **errstr, const char *kw)
 #ifdef M_DEBUG
     if (!lockout) {
         sLstr lstr;
-        print(lstr);
+        print(&lstr);
         printf("sMpoint:  %s\n", lstr.string());
     }
 #endif
@@ -704,89 +1064,91 @@ sMpoint::parse(const char **pstr, char **errstr, const char *kw)
 // Print the specification into lstr.
 //
 void
-sMpoint::print(sLstr &lstr)
+sMpoint::print(sLstr *plstr)
 {
+    if (!plstr)
+        return;
     if (!t_active)
         return;
-    lstr.add_c(' ');
+    plstr->add_c(' ');
     if (t_kw1) {
-        lstr.add(t_kw1);
-        lstr.add_c(' ');
+        plstr->add(t_kw1);
+        plstr->add_c(' ');
     }
     if (t_kw2) {
-        lstr.add(t_kw2);
-        lstr.add_c(' ');
+        plstr->add(t_kw2);
+        plstr->add_c(' ');
     }
     if (t_type == MPnum) {
         if (t_ptmode) {
-            lstr.add_c('[');
-            lstr.add_u(t_indx);
-            lstr.add_c(']');
+            plstr->add_c('[');
+            plstr->add_u(t_indx);
+            plstr->add_c(']');
         }
         else
-            lstr.add_g(t_td);
+            plstr->add_g(t_td);
     }
     else if (t_type == MPmref) {
-        lstr.add(t_expr1);
+        plstr->add(t_expr1);
         if (t_td_given) {
-            lstr.add_c(' ');
+            plstr->add_c(' ');
             if (t_dstrobe)
-                lstr.add(mkw_ts);
+                plstr->add(mkw_ts);
             else
-                lstr.add(mkw_td);
-            lstr.add_c('=');
-            lstr.add_g(t_td);
+                plstr->add(mkw_td);
+            plstr->add_c('=');
+            plstr->add_g(t_td);
         }
     }
     else if (t_type == MPexp1) {
-        lstr.add(t_expr1);
+        plstr->add(t_expr1);
         if (t_td_given || t_mname) {
-            lstr.add_c(' ');
+            plstr->add_c(' ');
             if (t_dstrobe)
-                lstr.add(mkw_ts);
+                plstr->add(mkw_ts);
             else
-                lstr.add(mkw_td);
-            lstr.add_c('=');
+                plstr->add(mkw_td);
+            plstr->add_c('=');
             if (t_mname)
-                lstr.add(t_mname);
+                plstr->add(t_mname);
             else
-                lstr.add_g(t_td);
+                plstr->add_g(t_td);
         }
     }
     else if (t_type == MPexp2) {
-        lstr.add(t_expr1);
-        lstr.add_c('=');
-        lstr.add(t_expr2);
+        plstr->add(t_expr1);
+        plstr->add_c('=');
+        plstr->add(t_expr2);
         if (t_td_given || t_mname) {
-            lstr.add_c(' ');
-            lstr.add(mkw_td);
-            lstr.add_c('=');
+            plstr->add_c(' ');
+            plstr->add(mkw_td);
+            plstr->add_c('=');
             if (t_mname)
-                lstr.add(t_mname);
+                plstr->add(t_mname);
             else
-                lstr.add_g(t_td);
+                plstr->add_g(t_td);
         }
         if (t_rises) {
-            lstr.add_c(' ');
-            lstr.add(mkw_rise);
-            lstr.add_c('=');
-            lstr.add_u(t_rises);
+            plstr->add_c(' ');
+            plstr->add(mkw_rise);
+            plstr->add_c('=');
+            plstr->add_u(t_rises);
         }
         if (t_falls) {
-            lstr.add_c(' ');
-            lstr.add(mkw_fall);
-            lstr.add_c('=');
-            lstr.add_u(t_falls);
+            plstr->add_c(' ');
+            plstr->add(mkw_fall);
+            plstr->add_c('=');
+            plstr->add_u(t_falls);
         }
         if (t_crosses) {
-            lstr.add_c(' ');
-            lstr.add(mkw_cross);
-            lstr.add_c('=');
-            lstr.add_u(t_crosses);
+            plstr->add_c(' ');
+            plstr->add(mkw_cross);
+            plstr->add_c('=');
+            plstr->add_u(t_crosses);
         }
     }
     if (t_conj)
-        t_conj->print(lstr);
+        t_conj->print(plstr);
 }
 
 
@@ -801,6 +1163,7 @@ sMpoint::check_found(sFtCirc *circuit, bool *err, bool end, sMpoint *mpprev)
     if (t_found_local && t_strobe)
         return (t_found_state);
 
+    sDataVec *xs = circuit->runplot()->scale();
     bool isready = true;
     bool found_local = t_found_local;
     bool offset_set = t_offset_set;
@@ -808,10 +1171,8 @@ sMpoint::check_found(sFtCirc *circuit, bool *err, bool end, sMpoint *mpprev)
 
         if (t_td_given)
             t_offset = t_td;
-        else {
-            sDataVec *xs = circuit->runplot()->scale();
+        else
             t_offset = xs->unscalarized_first();
-        }
 
         if (t_type == MPnum) {
 #ifdef M_DEBUG
@@ -914,8 +1275,7 @@ sMpoint::check_found(sFtCirc *circuit, bool *err, bool end, sMpoint *mpprev)
     }
 
     if (t_offset_set && !t_found_local) {
-        sDataVec *xs = circuit->runplot()->scale();
-        int ix = check_trig(xs);
+        int ix = check_trig(xs, t_offset);
 #ifdef M_DEBUG
         printf("at xs=%g indx=%d\n", xs->realval(0), ix);
 #endif
@@ -1012,21 +1372,12 @@ sMpoint::check_found(sFtCirc *circuit, bool *err, bool end, sMpoint *mpprev)
     }
 
 done:
+    t_px = xs->realval(0);
+    t_px_saved = true;
+
     if (t_range == MPbefore)
         isready = !isready;
 
-/*XXX
-Do we enforce time sequencing of the list?
-Issue:  .stop tran at 100p when expr
-Assume expr goes positive at 50p but returns to 0 before 100p, the when
-clause will be true, and the stop will occur at 100p.  Would it make more
-sense to wait for 100ps to test expr?
-
-implement:
-The time at found_local implicitly added to the delay of conj!
-*/
-#define NNN
-#ifdef NNN
     if (t_found_local) {
         if (t_conj && isready) {
             if (!t_conj->check_found(circuit, err, end, this))
@@ -1042,37 +1393,12 @@ The time at found_local implicitly added to the delay of conj!
             t_ready = true;
         }
     }
-    if (!offset_set && t_offset_set &&t_dstrobe) {
+    if (!offset_set && t_offset_set && t_dstrobe) {
         t_found_state = isready;
         t_found_local = true;
     }
     else if (!found_local && t_found_local && t_strobe)
         t_found_state = isready;
-
-#else
-    if (t_conj) {
-        if (!t_conj->check_found(circuit, err, end, this))
-            isready = false;
-    }
-    if (t_found_local && !t_ready) {
-        if (!t_conj)
-            t_ready = true;
-        else if (t_conj->t_ready) {
-            if (t_indx < t_conj->t_indx) {
-                t_found = t_conj->t_found;
-                t_indx = t_conj->t_indx;
-            }
-            t_ready = true;
-        }
-    }
-
-    if (!offset_set && t_offset_set &&t_dstrobe) {
-        t_found_state = isready;
-        t_found_local = true;
-    }
-    else if (!found_local && t_found_local && t_strobe)
-        t_found_state = isready;
-#endif
 
     return (isready);
 }
@@ -1083,32 +1409,39 @@ The time at found_local implicitly added to the delay of conj!
 // time point due to numerical error.
 //
 int
-sMpoint::check_trig(sDataVec *xs)
+sMpoint::check_trig(sDataVec *xs, double offs)
 {
+    // In operating range and Monte Carlo analysis, only the current
+    // point might be saved (length==1 always), but the previous point
+    // is available from the prev_real call.  On the first point
+    // (length==1) the value and prev_real are equal in both cases. 
+    // The code below should work in in either case.
+
     int i = xs->unscalarized_length() - 1;
-    if (i > 0) {
-        double x = xs->realval(0);
-        double xp = xs->unscalarized_prev_real();
-        if (t_ptmode) {
-            if (i < t_indx)
-                return (-1);
+    if (i < 0)
+        return (-1);
+    if (t_ptmode) {
+        if (i < t_indx)
+            return (-1);
+        return (i);
+    }
+    if (!t_px_saved)
+        return (-1);
+    double x = xs->realval(0);
+    if (x > t_px) {
+        double dx = (x - t_px)*1e-3;
+        if (x > offs - dx) {
+            if (i > 0 && (fabs(t_px - offs) < fabs(x - offs)))
+                i--;
             return (i);
         }
-        if (x > xp) {
-            double dx = (x - xp)*1e-3;
-            if (x > t_offset - dx) {
-                if (fabs(xp - t_offset) < fabs(x - t_offset))
-                    i--;
-                return (i);
-            }
-        }
-        else if (x < xp) {
-            double dx = (x - xp)*1e-3;
-            if (x < t_offset - dx) {
-                if (fabs(xp - t_offset) < fabs(x - t_offset))
-                    i--;
-                return (i);
-            }
+    }
+    else if (x < t_px) {
+        double dx = (x - t_px)*1e-3;
+        if (x < offs - dx) {
+            if (i > 0 && (fabs(t_px - offs) < fabs(x - offs)))
+                i--;
+            return (i);
         }
     }
     return (-1);
@@ -1151,65 +1484,64 @@ sMpoint::eval2()
 
 
 void
-sRunopMeas::print(char **pstr)
+sRunopMeas::print(sLstr *plstr)
 {
     const char *msg1 = "%c %-4d %s";
     char buf[64];
     sprintf(buf, msg1, ro_active ? ' ' : 'I', ro_number, kw_measure);
+    bool tostdout = (plstr == 0);
     sLstr lstr;
-    if (pstr && *pstr)
-        lstr.add(*pstr);
-    lstr.add(buf);
+    if (!plstr)
+        plstr = &lstr;
+    plstr->add(buf);
     if (ro_analysis >= 0) {
         IFanalysis *a = IFanalysis::analysis(ro_analysis);
         if (a) {
-            lstr.add_c(' ');
-            lstr.add(a->name);
+            plstr->add_c(' ');
+            plstr->add(a->name);
         }
     }
     if (ro_result) {
-        lstr.add_c(' ');
-        lstr.add(ro_result);
+        plstr->add_c(' ');
+        plstr->add(ro_result);
     }
-    ro_start.print(lstr);
-    ro_end.print(lstr);
+    ro_start.print(plstr);
+    ro_end.print(plstr);
 
     if (ro_end.active()) {
         for (sMfunc *m = ro_funcs; m; m = m->next())
-            m->print(lstr);
+            m->print(plstr);
     }
     for (sMfunc *m = ro_finds; m; m = m->next())
-        m->print(lstr);
+        m->print(plstr);
 
     if (ro_print_flag == 2) {
-        lstr.add_c(' ');
-        lstr.add(mkw_print);
+        plstr->add_c(' ');
+        plstr->add(mkw_print);
     }
     else if (ro_print_flag == 1) {
-        lstr.add_c(' ');
-        lstr.add(mkw_print_terse);
+        plstr->add_c(' ');
+        plstr->add(mkw_print_terse);
     }
     if (ro_exec) {
-        lstr.add_c(' ');
-        lstr.add(mkw_exec);
-        lstr.add_c(' ');
-        lstr.add(ro_exec);
+        plstr->add_c(' ');
+        plstr->add(mkw_exec);
+        plstr->add_c(' ');
+        plstr->add(ro_exec);
     }
     if (ro_call) {
-        lstr.add_c(' ');
-        lstr.add(mkw_call);
-        lstr.add_c(' ');
-        lstr.add(ro_call);
+        plstr->add_c(' ');
+        plstr->add(mkw_call);
+        plstr->add_c(' ');
+        plstr->add(ro_call);
     }
     if (ro_stop_flag) {
-        lstr.add_c(' ');
-        lstr.add(kw_stop);
+        plstr->add_c(' ');
+        plstr->add(kw_stop);
     }
 
-    lstr.add_c('\n');
-    if (pstr)
-        *pstr = lstr.string_trim();
-    else
+    plstr->add_c('\n');
+    if (tostdout)
         TTY.send(lstr.string());
 }
 
@@ -1274,29 +1606,6 @@ namespace {
             if (CP.ReturnVal() == CB_ENDIT)
                 return (RO_ENDIT);
         }
-/*XXX
-        else if (run->check()) {
-            // Run the "controls" bound codeblock.  Stop if the fail
-            // flag is set.
-
-            CBret ret = run->check()->evaluate();
-            if (ret == CBfail)
-                return (RO_PAUSE);
-            if (ret == CBendit)
-                return (RO_ENDIT);
-        }
-        else {
-            sFtCirc *circ = run->circuit();
-            if (circ) {
-                circ->controlBlk().exec(true);
-                if (CP.ReturnVal() == CB_PAUSE)
-                    return (RO_PAUSE);
-                if (CP.ReturnVal() == CB_ENDIT)
-                    return (RO_ENDIT);
-            }
-        }
-    }
-*/
         return (RO_OK);
     }
 }
@@ -1504,91 +1813,6 @@ sRunopMeas::parse(const char *str, char **errstr)
 }
 
 
-// Reset the measurement.
-//
-void
-sRunopMeas::reset(sPlot *pl)
-{
-    if (pl) {
-        // If the result vector is found in pl, delete it after copying
-        // to a history list in pl.
-        sDataVec *v = pl->get_perm_vec(ro_result);
-        if (v) {
-            char buf[128];
-            pl->remove_perm_vec(ro_result);
-            sprintf(buf, "%s_scale", ro_result);
-            sDataVec *vs = pl->get_perm_vec(buf);
-            if (vs) {
-                pl->remove_perm_vec(buf);
-                sprintf(buf, "%s_hist", ro_result);
-                sDataVec *vh = pl->get_perm_vec(buf);
-                if (!vh) {
-                    vh = new sDataVec(*v->units());
-                    vh->set_name(buf);
-                    vh->set_flags(0);
-                    sPlot *px = OP.curPlot();
-                    OP.setCurPlot(pl);
-                    vh->newperm();
-                    OP.setCurPlot(px);
-                }
-                sDataVec *vhs = vh->scale();
-                if (!vhs) {
-                    sprintf(buf, "%s_hist_scale", ro_result);
-                    vhs = new sDataVec(*vs->units());
-                    vhs->set_name(buf);
-                    vhs->set_flags(0);
-                    sPlot *px = OP.curPlot();
-                    OP.setCurPlot(pl);
-                    vhs->newperm();
-                    OP.setCurPlot(px);
-                    vh->set_scale(vhs);
-                }
-
-                int len = vh->length();
-                int nlen = len + v->length();
-                double *old = vh->realvec();
-                vh->set_realvec(new double[nlen]);
-                vh->set_length(nlen);
-                vh->set_allocated(nlen);
-                int i;
-                for (i = 0; i < len; i++)
-                    vh->set_realval(i, old[i]);
-                for (i = len; i < nlen; i++)
-                    vh->set_realval(i, v->realval(i-len));
-                delete [] old;
-
-                len = vhs->length();
-                nlen = len + vs->length();
-                old = vhs->realvec();
-                vhs->set_realvec(new double[nlen]);
-                vhs->set_length(nlen);
-                vhs->set_allocated(nlen);
-                for (i = 0; i < len; i++)
-                    vhs->set_realval(i, old[i]);
-                for (i = len; i < nlen; i++)
-                    vhs->set_realval(i, vs->realval(i-len));
-                delete [] old;
-                delete vs;
-            }
-            delete v;
-        }
-    }
-
-    ro_start.reset();
-    ro_end.reset();
-
-    ro_found_rises      = 0;
-    ro_found_falls      = 0;
-    ro_found_crosses    = 0;
-    ro_measure_done     = false;
-    ro_measure_error    = false;
-    ro_measure_skip     = false;
-    ro_stop_flag        = false;
-    ro_end_flag         = false;
-    ro_queue_measure    = false;
-}
-
-
 // Check if the measurement is triggered, and if so perform the
 // measurement.  This is called periodically as the analysis
 // progresses, or can be called after the analysis is complete.  True
@@ -1603,12 +1827,12 @@ sRunopMeas::check_measure(sRunDesc *run)
         return (true);
 
     sFtCirc *circuit = run->circuit();
-    sRunopMeas *measures = circuit->measures();
-    if (!measures)
-       return (true);  // "can't happen"
     bool ready = true;
     if (ro_prmexpr) {
-        for (sRunopMeas *m = measures; m; m = m->next()) {
+        sRunopDb *db = &circuit->runops();
+        ROgen<sRunopMeas> mgen(OP.runops()->measures(),
+            db ? db->measures() : 0);
+        for (sRunopMeas *m = mgen.next(); m; m = mgen.next()) {
             if (ro_analysis != m->ro_analysis)
                 continue;
             if (m == this)
@@ -1636,10 +1860,8 @@ sRunopMeas::check_measure(sRunDesc *run)
 // Called with vectors segmentized.
 //
 bool
-sRunopMeas::do_measure(sRunDesc *run)
+sRunopMeas::do_measure()
 {
-//XXX
-(void)run;
     if (!ro_queue_measure)
         return (false);
     ro_queue_measure = false;
@@ -1672,25 +1894,6 @@ sRunopMeas::do_measure(sRunDesc *run)
 }
 
 
-namespace {
-    // Return a data vector structure representing the expression
-    // evaluation.
-    //
-    sDataVec *evaluate(const char *str)
-    {
-        if (!str)
-            return (0);
-        const char *s = str;
-        pnode *pn = Sp.GetPnode(&s, true);
-        if (!pn)
-            return (0);
-        sDataVec *dv = Sp.Evaluate(pn);
-        delete pn;
-        return (dv);
-    }
-}
-
-
 // Do the measurement, call after successfully identifying the
 // measure interval.
 //
@@ -1703,115 +1906,32 @@ sRunopMeas::measure(sDataVec **dvp, int *cntp)
         *cntp = 0;
     if (!ro_cktptr)
         return (false);
-    sDataVec *xs = ro_cktptr->runplot()->scale();
     sDataVec *dv0 = 0;
     int count = 0;
     if (ro_start.ready() && ro_end.ready()) {
         for (sMfunc *ff = ro_funcs; ff; ff = ff->next(), count++) {
             sDataVec *dv = evaluate(ff->expr());
+
             if (dv && ((dv->length() > ro_start.indx() &&
                     dv->length() > ro_end.indx()) || dv->length() == 1)) {
                 if (!dv0)
                     dv0 = dv;
-                if (ff->type() == Mmin) {
-                    if (dv->length() == 1)
-                        ff->set_val(dv->realval(0));
-                    else {
-                        double mn = dv->realval(ro_start.indx());
-                        for (int i = ro_start.indx()+1; i <= ro_end.indx();
-                                i++) {
-                            if (dv->realval(i) < mn)
-                                mn = dv->realval(i);
-                        }
-                        double d;
-                        d = startval(dv, xs);
-                        if (d < mn)
-                            mn = d;
-                        d = endval(dv, xs);
-                        if (d < mn)
-                            mn = d;
-                        ff->set_val(mn);
-                    }
-                }
-                else if (ff->type() == Mmax) {
-                    if (dv->length() == 1)
-                        ff->set_val(dv->realval(0));
-                    else {
-                        double mx = dv->realval(ro_start.indx());
-                        for (int i = ro_start.indx()+1; i <= ro_end.indx();
-                                i++) {
-                            if (dv->realval(i) > mx)
-                                mx = dv->realval(i);
-                        }
-                        double d;
-                        d = startval(dv, xs);
-                        if (d > mx)
-                            mx = d;
-                        d = endval(dv, xs);
-                        if (d > mx)
-                            mx = d;
-                        ff->set_val(mx);
-                    }
-                }
-                else if (ff->type() == Mpp) {
-                    if (dv->length() == 1)
-                        ff->set_val(0.0);
-                    else {
-                        double mn = dv->realval(ro_start.indx());
-                        double mx = mn;
-                        for (int i = ro_start.indx()+1; i <= ro_end.indx();
-                                i++) {
-                            if (dv->realval(i) < mn)
-                                mn = dv->realval(i);
-                            else if (dv->realval(i) > mx)
-                                mx = dv->realval(i);
-                        }
-                        double d;
-                        d = startval(dv, xs);
-                        if (d > mx)
-                            mx = d;
-                        if (d < mn)
-                            mn = d;
-                        d = endval(dv, xs);
-                        if (d > mx)
-                            mx = d;
-                        if (d < mn)
-                            mn = d;
-                        ff->set_val(mx - mn);
-                    }
-                }
-                else if (ff->type() == Mavg) {
-                    if (dv->length() == 1)
-                        ff->set_val(dv->realval(0));
-                    else {
-                        sDataVec *txs = ro_cktptr->runplot()->scale();
-                        ff->set_val(findavg(dv, txs));
-                    }
-                }
-                else if (ff->type() == Mrms) {
-                    if (dv->length() == 1)
-                        ff->set_val(dv->realval(0));
-                    else {
-                        sDataVec *txs = ro_cktptr->runplot()->scale();
-                        ff->set_val(findrms(dv, txs));
-                    }
-                }
-                else if (ff->type() == Mpw) {
-                    if (dv->length() == 1)
-                        ff->set_val(0);
-                    else {
-                        sDataVec *txs = ro_cktptr->runplot()->scale();
-                        ff->set_val(findpw(dv, txs));
-                    }
-                }
-                else if (ff->type() == Mrft) {
-                    if (dv->length() == 1)
-                        ff->set_val(0);
-                    else {
-                        sDataVec *txs = ro_cktptr->runplot()->scale();
-                        ff->set_val(findrft(dv, txs));
-                    }
-                }
+                double sv = startval(dv);
+                double ev = endval(dv);
+                if (ff->type() == Mmin)
+                    ff->mmin(dv, ro_start.indx(), ro_end.indx(), &sv, &ev);
+                else if (ff->type() == Mmax)
+                    ff->mmax(dv, ro_start.indx(), ro_end.indx(), &sv, &ev);
+                else if (ff->type() == Mpp)
+                    ff->mpp(dv, ro_start.indx(), ro_end.indx(), &sv, &ev);
+                else if (ff->type() == Mavg)
+                    ff->mavg(dv, ro_start.indx(), ro_end.indx(), &sv, &ev);
+                else if (ff->type() == Mrms)
+                    ff->mrms(dv, ro_start.indx(), ro_end.indx(), &sv, &ev);
+                else if (ff->type() == Mpw)
+                    ff->mpw(dv, ro_start.indx(), ro_end.indx(), &sv, &ev);
+                else if (ff->type() == Mrft)
+                    ff->mrft(dv, ro_start.indx(), ro_end.indx(), &sv, &ev);
             }
             else {
                 ff->set_error(true);
@@ -1821,7 +1941,7 @@ sRunopMeas::measure(sDataVec **dvp, int *cntp)
         for (sMfunc *ff = ro_finds; ff; ff = ff->next(), count++) {
             sDataVec *dv = evaluate(ff->expr());
             if (dv) {
-                ff->set_val(endval(dv, xs) - startval(dv, xs));
+                ff->set_val(endval(dv) - startval(dv));
                 if (!dv0)
                     dv0 = dv;
             }
@@ -1835,7 +1955,7 @@ sRunopMeas::measure(sDataVec **dvp, int *cntp)
         for (sMfunc *ff = ro_finds; ff; ff = ff->next(), count++) {
             sDataVec *dv = evaluate(ff->expr());
             if (dv) {
-                ff->set_val(startval(dv, xs));
+                ff->set_val(startval(dv));
                 if (!dv0)
                     dv0 = dv;
             }
@@ -1872,97 +1992,112 @@ sRunopMeas::update_plot(sDataVec *dv0, int count)
         return (false);
     if (ro_cktptr->runplot()) {
 
-        // create the output vector and scale
         sPlot *pl = ro_cktptr->runplot();
-        sDataVec *xs = pl->scale();
-        sDataVec *nv = 0;
-        if (ro_end.ready()) {
-            // units test
-            int uv = 0, us = 0;
-            for (sMfunc *ff = ro_funcs; ff; ff = ff->next()) {
-                if (ff->type() == Mpw || ff->type() == Mrft)
-                    us++;
-                else
-                    uv++;
-            }
-            if (us) {
-                if (!uv)
-                    nv = new sDataVec(*xs->units());
-                else
-                    nv = new sDataVec();
-            }
-        }
+        sDataVec *nv = pl->get_perm_vec(ro_result);
         if (!nv) {
-            if (dv0)
-                nv = new sDataVec(*dv0->units());
-            else {
-                sUnits u;
-                nv = new sDataVec(u);
+            // Create the output vector and scale.
+            sDataVec *xs = pl->scale();
+            if (ro_end.ready()) {
+                // units test
+                int uv = 0, us = 0;
+                for (sMfunc *ff = ro_funcs; ff; ff = ff->next()) {
+                    if (ff->type() == Mpw || ff->type() == Mrft)
+                        us++;
+                    else
+                        uv++;
+                }
+                if (us) {
+                    if (!uv)
+                        nv = new sDataVec(*xs->units());
+                    else
+                        nv = new sDataVec();
+                }
             }
+            if (!nv) {
+                if (dv0)
+                    nv = new sDataVec(*dv0->units());
+                else {
+                    sUnits u;
+                    nv = new sDataVec(u);
+                }
+            }
+            nv->set_name(ro_result);
+            nv->set_flags(VF_NOSXZE);
+            nv->newperm(pl);
+
+            char scname[128];
+            sprintf(scname, "%s_scale", ro_result);
+            sDataVec *ns = new sDataVec(*xs->units());
+            ns->set_name(scname);
+            ns->set_flags(VF_NOSXZE);
+            ns->newperm(pl);
+            nv->set_scale(ns);
         }
-        nv->set_name(ro_result);
-        nv->set_flags(0);
-        sPlot *px = OP.curPlot();
-        OP.setCurPlot(pl);
-        nv->newperm();
-        OP.setCurPlot(px);
-        char scname[128];
-        sprintf(scname, "%s_scale", ro_result);
-        sDataVec *ns = new sDataVec(*xs->units());
-        ns->set_name(scname);
-        ns->set_flags(0);
-        px = OP.curPlot();
-        OP.setCurPlot(pl);
-        ns->newperm();
-        OP.setCurPlot(px);
-        nv->set_scale(ns);
 
         if (ro_prmexpr) {
-            nv->set_length(1);
-            nv->set_allocated(1);
-            nv->set_realvec(new double[1]);
+            int osz = nv->allocated();
+            nv->resize(osz + 1);
+            nv->set_length(osz + 1);
             if (dv0)
-                nv->set_realval(0, dv0->realval(0));
-            ns->set_length(1);
-            ns->set_allocated(1);
-            ns->set_realvec(new double[1]);
-            ns->set_realval(0, xs ? xs->realval(xs->length()-1) : 0.0);
+                nv->set_realval(osz, dv0->realval(0));
+            nv->set_numdims(2);
+            nv->set_dims(1, 1);
+            nv->set_dims(0, nv->allocated());
+            sDataVec *ns = nv->scale();
+            osz = ns->allocated();
+            ns->resize(osz + 1);
+            ns->set_length(osz + 1);
+            sDataVec *xs = pl->scale();
+            ns->set_realval(osz, xs ? xs->realval(xs->length()-1) : 0.0);
+            ns->set_numdims(2);
+            ns->set_dims(1, 1);
+            ns->set_dims(0, ns->allocated());
             if (!dv0) {
                 // No measurement, the named result is the time value.
-                nv->set_realval(0, ns->realval(0));
+                nv->set_realval(osz, ns->realval(osz));
             }
         }
         else {
+            int osz = nv->allocated();
             if (count == 0) {
                 count = 1;
                 if (ro_end.ready())
                     count++;
-                nv->set_realvec(new double[count]);
+                nv->resize(osz + count);
                 // No measurement, the named result is the time value.
-                nv->set_realval(0, ro_start.found());
+                nv->set_realval(osz, ro_start.found());
                 if (ro_end.ready())
-                    nv->set_realval(1, ro_end.found());
+                    nv->set_realval(osz+1, ro_end.found());
             }
             else
-                nv->set_realvec(new double[count]);
-            nv->set_length(count);
-            nv->set_allocated(count);
+                nv->resize(osz + count);
+            nv->set_length(osz + count);
+            int nd = nv->allocated() / count;
+            nv->set_numdims(2);
+            nv->set_dims(1, count);
+            nv->set_dims(0, nd);
             count = 0;
             if (ro_end.ready()) {
                 for (sMfunc *ff = ro_funcs; ff; ff = ff->next(), count++)
-                    nv->set_realval(count, ff->val());
+                    nv->set_realval(osz + count, ff->val());
             }
             for (sMfunc *ff = ro_finds; ff; ff = ff->next(), count++)
-                nv->set_realval(count, ff->val());
+                nv->set_realval(osz + count, ff->val());
+
             count = 1;
             if (ro_end.ready())
                 count++;
-            ns->set_realvec(new double[count]);
-            ns->set_length(count);
-            ns->set_allocated(count);
-            ns->set_realval(0, ro_start.found());
+            sDataVec *ns = nv->scale();
+            osz = ns->allocated();
+            ns->resize(osz + count);
+            ns->set_length(osz + count);
+            ns->set_realval(osz, ro_start.found());
             if (ro_end.ready())
-                ns->set_realval(1, ro_end.found());
+                ns->set_realval(osz+1, ro_end.found());
+            nd = ns->allocated() / count;
+            ns->set_numdims(2);
+            ns->set_dims(1, count);
+            ns->set_dims(0, nd);
         }
     }
     return (true);
@@ -2112,6 +2247,26 @@ sRunopMeas::addMeas(Mfunc mtype, const char *expr)
 }
 
 
+// Return a data vector structure representing the expression
+// evaluation.
+//
+sDataVec *
+sRunopMeas::evaluate(const char *str)
+{
+    if (!str)
+        return (0);
+    const char *s = str;
+    pnode *pn = Sp.GetPnode(&s, true);
+    if (!pn)
+        return (0);
+    sDataVec *dv = Sp.Evaluate(pn);
+    delete pn;
+    if (dv && !dv->scale())
+        dv->set_scale(ro_cktptr->runplot()->scale());
+    return (dv);
+}
+
+
 namespace {
     // Return the indexed value, or the last value if index is too big.
     //
@@ -2127,10 +2282,11 @@ namespace {
 // Return the interpolated start value of dv.
 //
 double
-sRunopMeas::startval(sDataVec *dv, sDataVec *xs)
+sRunopMeas::startval(sDataVec *dv)
 {
+    sDataVec *xs = dv->scale();
     int i = ro_start.indx();
-    if (ro_start.found() != xs->realval(i) && i > 0) {
+    if (xs && ro_start.found() != xs->realval(i) && i > 0) {
         double y0 = value(dv, ro_start.indx());
         double y1 = value(dv, ro_start.indx() - 1);
         return (y0 + (y1 - y0)*(ro_start.found() - xs->realval(i))/
@@ -2143,221 +2299,34 @@ sRunopMeas::startval(sDataVec *dv, sDataVec *xs)
 // Return the interpolated end value of dv.
 //
 double
-sRunopMeas::endval(sDataVec *dv, sDataVec *xs)
+sRunopMeas::endval(sDataVec *dv)
 {
+    sDataVec *xs = dv->scale();
     int i = ro_end.indx();
-    if (ro_end.found() != xs->realval(i) && i+1 < dv->length()) {
+    if (xs && ro_end.found() != xs->realval(i) && i > 0) {
         double y0 = value(dv, ro_end.indx());
-        double y1 = value(dv, ro_end.indx() + 1);
+        double y1 = value(dv, ro_end.indx() - 1);
         return (y0 + (y1 - y0)*(ro_end.found() - xs->realval(i))/
-            (xs->realval(i+1) - xs->realval(i)));
+            (xs->realval(i-1) - xs->realval(i)));
     }
     return (value(dv, ro_end.indx()));
-}
-
-
-// Find the average of dv over the interval.  We use trapezoid
-// integration and divide by the scale interval.
-//
-double
-sRunopMeas::findavg(sDataVec *dv, sDataVec *xs)
-{
-    double sum = 0.0;
-    double d, delt;
-    // compute the sum over the scale intervals
-    int i;
-    for (i = ro_start.indx()+1; i <= ro_end.indx(); i++) {
-        delt = xs->realval(i) - xs->realval(i-1);
-        sum += 0.5*delt*(dv->realval(i-1) + dv->realval(i));
-    }
-
-    // ro_start.found() is ahead of the start index (between i-1 and i)
-    delt = xs->realval(ro_start.indx()) - ro_start.found();
-    if (delt != 0) {
-        i = ro_start.indx();
-        d = dv->realval(i) + (dv->realval(i-1) - dv->realval(i))*
-            (ro_start.found() - xs->realval(ro_start.indx()))/
-            (xs->realval(i-1) - xs->realval(i));
-        sum += 0.5*delt*(d + dv->realval(i));
-    }
-
-    // ro_end.found() is ahead if the end index (between i-1 and i)
-    delt = ro_end.found() - xs->realval(ro_end.indx());
-    if (delt != 0.0) {
-        i = ro_end.indx();
-        d = dv->realval(i) + (dv->realval(i+1) - dv->realval(i))*
-            (ro_end.found() - xs->realval(ro_end.indx()))/
-            (xs->realval(i+1) - xs->realval(i));
-        sum += 0.5*delt*(d + dv->realval(i));
-    }
-
-    double dt = ro_end.found() - ro_start.found();
-    if (dt != 0.0)
-        sum /= dt;
-    return (sum);
-}
-
-
-// Find the rms of dv over the interval.  We use trapezoid
-// integration of the magnitudes.
-//
-double
-sRunopMeas::findrms(sDataVec *dv, sDataVec *xs)
-{
-    double sum = 0.0;
-    double d, delt;
-    // compute the sum over the scale intervals
-    int i;
-    for (i = ro_start.indx()+1; i <= ro_end.indx(); i++) {
-        delt = xs->realval(i) - xs->realval(i-1);
-        sum += 0.5*delt*(dv->realval(i-1)*dv->realval(i-1) +
-            dv->realval(i)*dv->realval(i));
-    }
-
-    // ro_start.found() is ahead of the start index
-    delt = xs->realval(ro_start.indx()) - ro_start.found();
-    if (delt != 0.0) {
-        i = ro_start.indx();
-        d = dv->realval(i) + (dv->realval(i-1) - dv->realval(i))*
-            (ro_start.found() - xs->realval(ro_start.indx()))/
-            (xs->realval(i-1) - xs->realval(i));
-        sum += 0.5*delt*(d*d + dv->realval(i)*dv->realval(i));
-    }
-
-    // ro_end.found() is behind the end index
-    delt = ro_end.found() - xs->realval(ro_end.indx());
-    if (delt != 0.0) {
-        i = ro_end.indx();
-        d = dv->realval(i) + (dv->realval(i+1) - dv->realval(i))*
-            (ro_end.found() - xs->realval(ro_end.indx()))/
-            (xs->realval(i+1) - xs->realval(i));
-        sum += 0.5*delt*(d*d + dv->realval(i)*dv->realval(i));
-    }
-
-    double dt = ro_end.found() - ro_start.found();
-    if (dt != 0.0)
-        sum /= dt;
-    return (sqrt(fabs(sum)));
-}
-
-
-// Find the fwhm of a pulse assumed to be contained in the interval.
-double
-sRunopMeas::findpw(sDataVec *dv, sDataVec *xs)
-{
-    // find the max/min
-    double mx = dv->realval(ro_start.indx());
-    double mn = mx;
-    int imx = -1;
-    int imn = -1;
-    for (int i = ro_start.indx()+1; i <= ro_end.indx(); i++) {
-        if (dv->realval(i) > mx) {
-            mx = dv->realval(i);
-            imx = i;
-        }
-        if (dv->realval(i) < mn) {
-            mn = dv->realval(i);
-            imn = i;
-        }
-    }
-    double ds = startval(dv, xs);
-    double de = endval(dv, xs);
-    double mid;
-    int imid;
-    if (mx - SPMAX(ds, de) > SPMIN(ds, de) - mn) {
-        mid = 0.5*(mx + SPMAX(ds, de));
-        imid = imx;
-    }
-    else {
-        mid = 0.5*(mn + SPMIN(ds, de));
-        imid = imn;
-    }
-
-    int ibeg = -1, iend = -1;
-    for (int i = ro_start.indx() + 1; i <= ro_end.indx(); i++) {
-        if ((dv->realval(i-1) < mid && dv->realval(i) >= mid) ||
-                (dv->realval(i-1) > mid && dv->realval(i) <= mid)) {
-            if (ibeg >= 0)
-                iend = i;
-            else
-                ibeg = i;
-        }
-        if (ibeg >=0 && iend >= 0)
-            break;
-    }
-    if (ibeg >= 0 && iend >= 0 && ibeg < imid && iend > imid) {
-        double x0 = xs->realval(ibeg-1);
-        double x1 = xs->realval(ibeg);
-        double y0 = dv->realval(ibeg-1);
-        double y1 = dv->realval(ibeg);
-        double tbeg = x0 + (x1 - x0)*(mid - y0)/(y1 - y0);
-        x0 = xs->realval(iend-1);
-        x1 = xs->realval(iend);
-        y0 = dv->realval(iend-1);
-        y1 = dv->realval(iend);
-        double tend = x0 + (x1 - x0)*(mid - y0)/(y1 - y0);
-        return(tend - tbeg);
-    }
-    return (0.0);
-}
-
-
-// Find the 10-90% rise or fall time of an edge contained in the
-// interval.
-//
-double
-sRunopMeas::findrft(sDataVec *dv, sDataVec *xs)
-{
-    double vstart = startval(dv, xs);
-    double vend = endval(dv, xs);
-    double th1 = vstart + 0.1*(vend - vstart);
-    double th2 = vstart + 0.9*(vend - vstart);
-
-    int ibeg = -1, iend = -1;
-    for (int i = ro_start.indx() + 1; i <= ro_end.indx(); i++) {
-        if ((dv->realval(i-1) < th1 && dv->realval(i) >= th1) ||
-                (dv->realval(i-1) > th1 && dv->realval(i) <= th1) ||
-                (dv->realval(i-1) < th2 && dv->realval(i) >= th2) ||
-                (dv->realval(i-1) > th2 && dv->realval(i) <= th2)) {
-            if (ibeg >= 0)
-                iend = i;
-            else
-                ibeg = i;
-        }
-        if (ibeg >=0 && iend >= 0)
-            break;
-    }
-    if (ibeg >= 0 && iend >= 0 && iend > ibeg) {
-        double x0 = xs->realval(ibeg-1);
-        double x1 = xs->realval(ibeg);
-        double y0 = dv->realval(ibeg-1);
-        double y1 = dv->realval(ibeg);
-        double tbeg = x0 + (x1 - x0)*(th1 - y0)/(y1 - y0);
-        x0 = xs->realval(iend-1);
-        x1 = xs->realval(iend);
-        y0 = dv->realval(iend-1);
-        y1 = dv->realval(iend);
-        double tend = x0 + (x1 - x0)*(th2 - y0)/(y1 - y0);
-        return(tend - tbeg);
-    }
-    return (0.0);
 }
 // End of sRunopMeas functions.
 
 
 void
-sRunopStop::print(char **retstr)
+sRunopStop::print(sLstr *plstr)
 {
     const char *msg1 = "%c %-4d ";
-    if (!retstr) {
+    if (!plstr) {
         TTY.printf(msg1, ro_active ? ' ' : 'I', ro_number);
         print_cond(0, true);
     }
     else {
         char buf[64];
         sprintf(buf, msg1, ro_active ? ' ' : 'I', ro_number);
-        *retstr = lstring::build_str(*retstr, buf);
-        print_cond(retstr, true);
+        plstr->add(buf);
+        print_cond(plstr, true);
     }
 }
 
@@ -2407,6 +2376,13 @@ sRunopStop::parse(const char *str, char **errstr)
             }
             continue;
         }
+        if (lstring::cieq(tok, mkw_repeat)) {
+            delete [] tok;
+            ro_per = gval(&s, &err);
+            if (err)
+                break;
+            continue;
+        }
         if (lstring::cieq(tok, mkw_exec)) {
             delete [] tok;
             ro_exec = gtok(&s);;
@@ -2439,24 +2415,6 @@ sRunopStop::parse(const char *str, char **errstr)
 }
 
 
-// Reset the measurement.
-//
-void
-sRunopStop::reset()
-{
-
-    ro_start.reset();
-
-    ro_found_rises      = 0;
-    ro_found_falls      = 0;
-    ro_found_crosses    = 0;
-    ro_stop_done        = false;
-    ro_stop_error       = false;
-    ro_stop_flag        = false;
-    ro_end_flag         = false;
-}
-
-
 ROret
 sRunopStop::check_stop(sRunDesc *run)
 {
@@ -2466,16 +2424,30 @@ sRunopStop::check_stop(sRunDesc *run)
         return (RO_OK);
 
     sFtCirc *circuit = run->circuit();
-    if (!ro_start.check_found(circuit, &ro_stop_error, false))
-        return (RO_OK);
+
+    if (ro_repeating) {
+        sDataVec *xs = circuit->runplot()->scale();
+        if (ro_start.check_trig(xs, ro_offs) < 0)
+            return (RO_OK);
+        ro_offs += ro_per;
+    }
+    else {
+        if (!ro_start.check_found(circuit, &ro_stop_error, false))
+            return (RO_OK);
+
+        if (ro_per != 0.0) {
+            ro_offs = ro_start.found() + ro_per;
+            ro_repeating = true;
+        }
+        else
+            ro_stop_done = true;
+    }
 
     // Execute command if any.
     exec(ro_exec);
 
     // Call the callback, if any.  This can override the stop.
     ROret ret = ::call(ro_call);
-
-    ro_stop_done = true;
 
     if (ret == RO_OK)
         return (RO_PAUSE);
@@ -2490,48 +2462,50 @@ sRunopStop::check_stop(sRunDesc *run)
 // printing for the status command.
 //
 void
-sRunopStop::print_cond(char **retstr, bool status)
+sRunopStop::print_cond(sLstr *plstr, bool status)
 {
     (void)status;
+    bool tostdout = (plstr == 0);
     sLstr lstr;
-    if (retstr) {
-        lstr.add(*retstr);
-        delete [] *retstr;
-        *retstr = 0;
-    }
-    lstr.add(kw_stop);
+    if (!plstr)
+        plstr = &lstr;
+    plstr->add(kw_stop);
     if (ro_analysis >= 0) {
         IFanalysis *a = IFanalysis::analysis(ro_analysis);
         if (a) {
-            lstr.add_c(' ');
-            lstr.add(a->name);
+            plstr->add_c(' ');
+            plstr->add(a->name);
         }
     }
-    ro_start.print(lstr);
+    ro_start.print(plstr);
 
+    if (ro_per != 0.0) {
+        plstr->add_c(' ');
+        plstr->add(mkw_repeat);
+        plstr->add_c(' ');
+        plstr->add_g(ro_per);
+    }
     if (ro_exec) {
-        lstr.add_c(' ');
-        lstr.add(mkw_exec);
-        lstr.add_c(' ');
-        lstr.add(ro_exec);
+        plstr->add_c(' ');
+        plstr->add(mkw_exec);
+        plstr->add_c(' ');
+        plstr->add(ro_exec);
     }
     if (ro_call) {
-        lstr.add_c(' ');
-        lstr.add(mkw_call);
-        lstr.add_c(' ');
-        lstr.add(ro_call);
+        plstr->add_c(' ');
+        plstr->add(mkw_call);
+        plstr->add_c(' ');
+        plstr->add(ro_call);
     }
     if (status) {
         if (ro_silent) {
-            lstr.add_c(' ');
-            lstr.add(mkw_silent);
+            plstr->add_c(' ');
+            plstr->add(mkw_silent);
         }
     }
-    lstr.add_c('\n');
+    plstr->add_c('\n');
 
-    if (retstr)
-        *retstr = lstr.string_trim();
-    else
+    if (tostdout)
         TTY.send(lstr.string());
 }
 

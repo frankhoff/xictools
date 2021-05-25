@@ -400,7 +400,7 @@ sPlc::sPlc(bool noprompt)
 
     sb = sb_mmlen.init(ED()->plMenuLen(), 1.0, 75.0, 0);
     sb_mmlen.connect_changed(GTK_SIGNAL_FUNC(pl_val_changed), 0, "mmlen");
-    gtk_widget_set_usize(sb, 80, -1);
+    gtk_widget_set_size_request(sb, 80, -1);
     gtk_box_pack_end(GTK_BOX(hbox), sb, false, false, 0);
 
     gtk_table_attach(GTK_TABLE(form), hbox, 0, 1, rowcnt, rowcnt+1,
@@ -645,7 +645,7 @@ sPlc::pl_replace_proc(GtkWidget *caller, void*)
 void
 sPlc::pl_refmenu_proc(GtkWidget*, void *arg)
 {
-    PLref ref = (PLref)(long)(arg);
+    PLref ref = (PLref)(intptr_t)(arg);
     ED()->setInstanceRef(ref);
 }
 
@@ -687,7 +687,7 @@ sPlc::pl_array_set_proc(GtkWidget*, void *arg)
 {
     if (!Plc)
         return;
-    int code = (long)arg;
+    int code = (intptr_t)arg;
     if (code == PL_NX)
         pl_iap.set_nx(Plc->sb_nx.get_value_as_int());
     else if (code == PL_NY)

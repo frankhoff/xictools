@@ -40,6 +40,8 @@
 
 #include "main.h"
 #include "ext_fxjob.h"
+#include "ext_fc.h"
+#include "ext_fh.h"
 #include "dsp.h"
 #include "dsp_inlines.h"
 #include "dsp_tkif.h"
@@ -421,7 +423,7 @@ namespace {
     int
     exec_idle(void *arg)
     {
-        int pid = (long)arg;
+        int pid = (intptr_t)arg;
         fxJob *j = fxJob::find(pid);
         if (j) {
             j->post_proc();
@@ -491,7 +493,7 @@ namespace {
             DWORD status;
             GetExitCodeProcess(h, &status);
             if (!status) {
-                dspPkgIf()->RegisterIdleProc(exec_idle, (void*)pid);
+                dspPkgIf()->RegisterIdleProc(exec_idle, (void*)(uintptr_t)pid);
                 CloseHandle(h);
                 return;
             }
@@ -503,7 +505,7 @@ namespace {
             if (j->if_type() == fxJobMIT) {
                 // MIT FastCap (at least) does not return anything
                 // useful.
-                dspPkgIf()->RegisterIdleProc(exec_idle, (void*)(long)pid);
+                dspPkgIf()->RegisterIdleProc(exec_idle, (void*)(uintptr_t)pid);
                 CloseHandle(h);
                 return;
             }

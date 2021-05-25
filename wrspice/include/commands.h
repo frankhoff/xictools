@@ -140,7 +140,9 @@ public:
     static void com_echo(wordlist*);
     static void com_echof(wordlist*);
     static void com_edit(wordlist*);
+    static void com_findlower(wordlist*);
     static void com_findrange(wordlist*);
+    static void com_findupper(wordlist*);
     static void com_fourier(wordlist*);
     static void com_free(wordlist*);
     static void com_hardcopy(wordlist*);
@@ -166,6 +168,7 @@ public:
     static void com_plot(wordlist*);
     static void com_plotwin(wordlist*);
     static void com_print(wordlist*);
+    static void com_printf(wordlist*);
     static void com_proxy(wordlist*);
     static void com_pwd(wordlist*);
     static void com_pz(wordlist*);
@@ -217,6 +220,7 @@ public:
     static void com_unlet(wordlist*);
     static void com_unset(wordlist*);
     static void com_usrset(wordlist*);
+    static void com_vastep(wordlist*);
     static void com_version(wordlist*);
     static void com_where(wordlist*);
     static void com_write(wordlist*);

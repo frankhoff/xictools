@@ -67,8 +67,20 @@ JJdev::askModl(const sGENmodel *genmod, int which, IFdata *data)
         value->iValue = model->JJictype;
         data->type = IF_INTEGER;
         break;
+    case JJ_MOD_TC:
+        value->rValue = model->JJtc;
+        break;
+    case JJ_MOD_TNOM:
+        value->rValue = model->JJtnom;
+        break;
+    case JJ_MOD_DEFTEMP:
+        value->rValue = model->JJdeftemp;
+        break;
+    case JJ_MOD_TCFCT:
+        value->rValue = model->JJtcfct;
+        break;
     case JJ_MOD_VG:
-        value->rValue = model->JJvg;
+        value->rValue = model->JJvgnom;
         break;
     case JJ_MOD_DV:
         value->rValue = model->JJdelv;
@@ -112,6 +124,10 @@ JJdev::askModl(const sGENmodel *genmod, int which, IFdata *data)
     case JJ_MOD_VSHUNT:
         value->rValue = model->JJvShunt;
         break;
+    case JJ_MOD_FORCE:
+        value->iValue = model->JJforceGiven;
+        data->type = IF_INTEGER;
+        break;
 #ifdef NEWLSH
     case JJ_MOD_LSH0:
         value->rValue = model->JJlsh0;
@@ -125,12 +141,6 @@ JJdev::askModl(const sGENmodel *genmod, int which, IFdata *data)
         break;
     case JJ_MOD_TSACCL:
         value->rValue = model->JJtsaccl;
-        break;
-    case JJ_MQUEST_VL:
-        value->rValue = model->JJvless;
-        break;
-    case JJ_MQUEST_VM:
-        value->rValue = model->JJvmore;
         break;
     case JJ_MQUEST_VDP:
         value->rValue = model->JJvdpbak;

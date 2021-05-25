@@ -159,11 +159,11 @@ namespace {
             void enable_point(bool);
 
             static int nm_node_of_row(int);
-            static bool nm_select_nlist_proc(GtkTreeSelection*, GtkTreeModel*,
-                GtkTreePath*, bool, void*);
+            static int nm_select_nlist_proc(GtkTreeSelection*, GtkTreeModel*,
+                GtkTreePath*, int, void*);
             static bool nm_n_focus_proc(GtkWidget*, GdkEvent*, void*);
-            static bool nm_select_tlist_proc(GtkTreeSelection*, GtkTreeModel*,
-                GtkTreePath*, bool, void*);
+            static int nm_select_tlist_proc(GtkTreeSelection*, GtkTreeModel*,
+                GtkTreePath*, int, void*);
             static bool nm_t_focus_proc(GtkWidget*, GdkEvent*, void*);
             static void nm_cancel_proc(GtkWidget*, void*);
             static void nm_desel_proc(GtkWidget*, void*);
@@ -377,7 +377,7 @@ sNM::sNM(GRobject caller, int node)
     GtkWidget *entry = gtk_entry_new();
     gtk_widget_show(entry);
     gtk_box_pack_start(GTK_BOX(hbox), entry, true, true, 0);
-    gtk_widget_set_usize(entry, 80, -1);
+    gtk_widget_set_size_request(entry, 80, -1);
     gtk_signal_connect(GTK_OBJECT(entry), "activate",
         GTK_SIGNAL_FUNC(nm_activate_proc), 0);
     nm_srch_entry = entry;
@@ -408,7 +408,7 @@ sNM::sNM(GRobject caller, int node)
     //
     GtkWidget *swin = gtk_scrolled_window_new(0, 0);
     gtk_widget_show(swin);
-    gtk_widget_set_usize(swin, 250, 200);
+    gtk_widget_set_size_request(swin, 250, 200);
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(swin),
         GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
     gtk_container_set_border_width(GTK_CONTAINER(swin), 2);
@@ -437,8 +437,7 @@ sNM::sNM(GRobject caller, int node)
 
     GtkTreeSelection *sel =
         gtk_tree_view_get_selection(GTK_TREE_VIEW(nm_node_list));
-    gtk_tree_selection_set_select_function(sel,
-        (GtkTreeSelectionFunc)nm_select_nlist_proc, 0, 0);
+    gtk_tree_selection_set_select_function(sel, nm_select_nlist_proc, 0, 0);
     // TreeView bug hack, see note with handler.   
     gtk_signal_connect(GTK_OBJECT(nm_node_list), "focus",
         GTK_SIGNAL_FUNC(nm_n_focus_proc), this);
@@ -451,7 +450,7 @@ sNM::sNM(GRobject caller, int node)
     //
     swin = gtk_scrolled_window_new(0, 0);
     gtk_widget_show(swin);
-    gtk_widget_set_usize(swin, 110, 200);
+    gtk_widget_set_size_request(swin, 110, 200);
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(swin),
         GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
     gtk_container_set_border_width(GTK_CONTAINER(swin), 2);
@@ -470,8 +469,7 @@ sNM::sNM(GRobject caller, int node)
 
     sel =
         gtk_tree_view_get_selection(GTK_TREE_VIEW(nm_term_list));
-    gtk_tree_selection_set_select_function(sel,
-        (GtkTreeSelectionFunc)nm_select_tlist_proc, 0, 0);
+    gtk_tree_selection_set_select_function(sel, nm_select_tlist_proc, 0, 0);
     // TreeView bug hack, see note with handler.   
     gtk_signal_connect(GTK_OBJECT(nm_term_list), "focus",
         GTK_SIGNAL_FUNC(nm_t_focus_proc), this);
@@ -879,9 +877,9 @@ sNM::nm_node_of_row(int row)
 
 
 // Static function.
-bool
+int
 sNM::nm_select_nlist_proc(GtkTreeSelection*, GtkTreeModel*,
-    GtkTreePath *path, bool issel, void*)
+    GtkTreePath *path, int issel, void*)
 {
     if (NM) {
         if (issel) {
@@ -967,9 +965,9 @@ sNM::nm_n_focus_proc(GtkWidget*, GdkEvent*, void*)
         
 
 // Static function.
-bool
+int
 sNM::nm_select_tlist_proc(GtkTreeSelection*, GtkTreeModel *store,
-    GtkTreePath *path, bool issel, void*)
+    GtkTreePath *path, int issel, void*)
 {
     if (NM) {
         // The calling sequence from selections in the GtkTreeView is

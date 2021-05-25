@@ -55,6 +55,7 @@ Authors: 1985 Wayne A. Christopher
 // sDataVec functions.
 //
 
+bool sDataVec::v_degrees = false;
 bool sDataVec::v_temporary = false;
 
 sDataVec::~sDataVec()
@@ -177,7 +178,7 @@ sDataVec::newperm(sPlot *pl)
 void
 sDataVec::scalarize()
 {
-    if (!v_scaldata && v_length > 1) {
+    if (!v_scaldata && (v_length > 1) && !no_sxze()) {
         v_scaldata = new scalData(this);
 
         v_length = 1;
@@ -218,7 +219,7 @@ sDataVec::unscalarize()
 void
 sDataVec::segmentize()
 {
-    if (!v_segmdata && v_numdims > 1) {
+    if (!v_segmdata && (v_numdims > 1) && !no_sxze())  {
 
         int per = v_dims[1];
         int l = v_length;
@@ -340,11 +341,11 @@ sDataVec::alloc(bool real, int size)
     if (size) {
         if (real) {
             v_data.real = new double[size];
-            memset(v_data.real, 0, size*sizeof(double));
+            memset((void*)v_data.real, 0, size*sizeof(double));
         }
         else {
             v_data.comp = new complex[size];
-            memset(v_data.comp, 0, size*sizeof(complex));
+            memset((void*)v_data.comp, 0, size*sizeof(complex));
         }
     }
     v_rlength = size;
@@ -369,8 +370,10 @@ sDataVec::resize(int newsize)
         complex *oldv = v_data.comp;
         v_data.comp = new complex[newsize];
         memcpy(v_data.comp, oldv, sz*sizeof(complex));
-        if (sz < newsize)
-            memset(v_data.comp + sz, 0, (newsize - sz)*sizeof(complex));
+        if (sz < newsize) {
+            memset((void*)(v_data.comp + sz), 0,
+                (newsize - sz)*sizeof(complex));
+        }
         delete [] oldv;
     }
     v_rlength = newsize;
@@ -588,7 +591,7 @@ sDataVec::extend(int len)
 
 
 void
-sDataVec::print(char **retstr)
+sDataVec::print(sLstr *plstr)
 {
     char buf[BSIZE_SP], buf2[BSIZE_SP];
     char ubuf[64];
@@ -683,8 +686,8 @@ sDataVec::print(char **retstr)
         strcat(buf, " [default scale]\n");
     else
         strcat(buf, "\n");
-    if (retstr)
-        *retstr = lstring::build_str(*retstr, buf);
+    if (plstr)
+        plstr->add(buf);
     else
         TTY.send(buf);
 }

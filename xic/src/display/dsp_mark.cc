@@ -4576,7 +4576,14 @@ sMark_Fence::show(WindowDesc *wdesc, bool display)
         int x1, y1, x2, y2;
         wdesc->LToP(mX, mY, x1, y1);
         wdesc->LToP(mEndX, mEndY, x2, y2);
-        if (x1 == x2) {
+        if (x1 == x2 && y1 == y2) {
+            const int p = DSP_GRIP_MARK_PIXELS;
+            show_line(wdesc, x1-p, y1, x1, y1+p);
+            show_line(wdesc, x1, y1+p, x1+p, y1);
+            show_line(wdesc, x1+p, y1, x1, y1-p);
+            show_line(wdesc, x1, y1-p, x1-p, y1);
+        }
+        else if (x1 == x2) {
             show_line(wdesc, x1-1, y1, x1-1, y2);
             show_line(wdesc, x1+1, y1, x1+1, y2);
         }
@@ -4585,11 +4592,12 @@ sMark_Fence::show(WindowDesc *wdesc, bool display)
             show_line(wdesc, x1, y1+1, x2, y1+1);
         }
         else {
-            show_line(wdesc, x1, y1, x2, y2);
+            show_line(wdesc, x1, y1-1, x2, y2-1);
+            show_line(wdesc, x1, y1+1, x2, y2+1);
         }
     }
     else {
-        int delta = (int)(2.0/wdesc->Ratio());
+        int delta = (int)(DSP_GRIP_MARK_PIXELS/wdesc->Ratio());
         BBox BB(mX, mY, mEndX, mEndY);
         BB.fix();
         BB.bloat(delta);
@@ -5307,7 +5315,7 @@ sMK::show_user_marks(WindowDesc *wdesc, bool blink)
     CDs *sd = wdesc->CurCellDesc(wdesc->Mode(), true);
     if (!sd)
         return;
-    hlite_t *m = (hlite_t*)SymTab::get(user_marks_tab, (unsigned long)sd);
+    hlite_t *m = (hlite_t*)SymTab::get(user_marks_tab, (uintptr_t)sd);
     if (m == (hlite_t*)ST_NIL)
         return;
     for ( ; m; m = m->next)
@@ -5325,7 +5333,7 @@ sMK::add_user_marksBB(WindowDesc *wdesc, BBox *BB)
     CDs *sd = wdesc->CurCellDesc(wdesc->Mode(), true);
     if (!sd)
         return;
-    hlite_t *m = (hlite_t*)SymTab::get(user_marks_tab, (unsigned long)sd);
+    hlite_t *m = (hlite_t*)SymTab::get(user_marks_tab, (uintptr_t)sd);
     if (m == (hlite_t*)ST_NIL)
         return;
     for ( ; m; m = m->next)
@@ -5341,7 +5349,7 @@ sMK::remove_user_mark(const CDs *sd, const BBox *AOI)
 {
     if (!user_marks_tab || !sd)
         return (false);
-    SymTabEnt *h = SymTab::get_ent(user_marks_tab, (unsigned long)sd);
+    SymTabEnt *h = SymTab::get_ent(user_marks_tab, (uintptr_t)sd);
     if (!h)
         return (false);
     hlite_t *mp = 0;
@@ -5369,7 +5377,7 @@ sMK::remove_user_mark(const CDs *sd, int id)
 {
     if (!user_marks_tab || !sd)
         return (false);
-    SymTabEnt *h = SymTab::get_ent(user_marks_tab, (unsigned long)sd);
+    SymTabEnt *h = SymTab::get_ent(user_marks_tab, (uintptr_t)sd);
     if (!h)
         return (false);
     if (id <= 0) {
@@ -5380,7 +5388,7 @@ sMK::remove_user_mark(const CDs *sd, int id)
             mx->display(ERASE);
             delete mx;
         }
-        user_marks_tab->remove((unsigned long)sd);
+        user_marks_tab->remove((uintptr_t)sd);
     }
     else {
         hlite_t *mp = 0;
@@ -5425,7 +5433,7 @@ sMK::clear_user_marks(const CDs *sd)
         user_marks_tab = 0;
         return;
     }
-    hlite_t *m = (hlite_t*)SymTab::get(user_marks_tab, (unsigned long)sd);
+    hlite_t *m = (hlite_t*)SymTab::get(user_marks_tab, (uintptr_t)sd);
     if (m == (hlite_t*)ST_NIL)
         return;
     while (m) {
@@ -5433,7 +5441,7 @@ sMK::clear_user_marks(const CDs *sd)
         m = m->next;
         delete mx;
     }
-    user_marks_tab->remove((unsigned long)sd);
+    user_marks_tab->remove((uintptr_t)sd);
 }
 
 
@@ -5446,10 +5454,10 @@ sMK::add_user_mark(const CDs *sd, hlite_t *m)
         return (true);
     if (!user_marks_tab)
         user_marks_tab = new SymTab(false, false);
-    SymTabEnt *h = SymTab::get_ent(user_marks_tab, (unsigned long)sd);
+    SymTabEnt *h = SymTab::get_ent(user_marks_tab, (uintptr_t)sd);
     if (!h) {
-        user_marks_tab->add((unsigned long)sd, 0, false);
-        h = SymTab::get_ent(user_marks_tab, (unsigned long)sd);
+        user_marks_tab->add((uintptr_t)sd, 0, false);
+        h = SymTab::get_ent(user_marks_tab, (uintptr_t)sd);
     }
     m->next = (hlite_t*)h->stData;
     h->stData = m;
@@ -5464,10 +5472,10 @@ sMK::new_user_mark(const CDs *sd)
         return (0);
     if (!user_marks_tab)
         user_marks_tab = new SymTab(false, false);
-    SymTabEnt *h = SymTab::get_ent(user_marks_tab, (unsigned long)sd);
+    SymTabEnt *h = SymTab::get_ent(user_marks_tab, (uintptr_t)sd);
     if (!h) {
-        user_marks_tab->add((unsigned long)sd, 0, false);
-        h = SymTab::get_ent(user_marks_tab, (unsigned long)sd);
+        user_marks_tab->add((uintptr_t)sd, 0, false);
+        h = SymTab::get_ent(user_marks_tab, (uintptr_t)sd);
     }
     hlite_t *m = new hlite_t((hlite_t*)h->stData);
     h->stData = m;
@@ -5488,7 +5496,7 @@ sMK::dump_user_marks(const char *fname, const CDs *sd)
     }
     if (!user_marks_tab)
         return (0);
-    SymTabEnt *h = SymTab::get_ent(user_marks_tab, (unsigned long)sd);
+    SymTabEnt *h = SymTab::get_ent(user_marks_tab, (uintptr_t)sd);
     if (!h || !h->stData)
         return (0);
 

@@ -81,6 +81,7 @@ struct sExtKW
     const char *MultiNet()          const { return ("MultiNet"); }
     const char *Contact()           const { return ("Contact"); }
     const char *Via()               const { return ("Via"); }
+    const char *ViaCut()            const { return ("ViaCut"); }
     const char *Dielectric()        const { return ("Dielectric"); }
     const char *Planarize()         const { return ("Planarize"); }
     const char *DarkField()         const { return ("DarkField"); }
@@ -88,6 +89,9 @@ struct sExtKW
     const char *Thickness()         const { return ("Thickness"); }
     const char *Rho()               const { return ("Rho"); }
     const char *Sigma()             const { return ("Sigma"); }
+    const char *Tau()               const { return ("Tau"); }
+    const char *FH_nhinc()          const { return ("FH_nhinc"); }
+    const char *FH_rh()             const { return ("FH_rh"); }
     const char *Rsh()               const { return ("Rsh"); }
     const char *EpsRel()            const { return ("EpsRel"); }
     const char *Cap()               const { return ("Cap"); }

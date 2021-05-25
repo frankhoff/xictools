@@ -52,6 +52,7 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include <ctype.h>
+#include <stdint.h>
 #ifdef HAVE_FNMATCH_H
 #include <fnmatch.h>
 #else
@@ -583,7 +584,7 @@ GTKfilePopup::GTKfilePopup(gtk_bag *owner, FsMode mode, void *arg,
             fs_rootdir = lstring::copy(cur_root());
         wb_shell = gtk_NewPopup(owner, "Target Selection", fs_quit_proc, this);
         nofiles = true;
-        gtk_widget_set_usize(wb_shell, 400, 200);
+        gtk_widget_set_size_request(wb_shell, 400, 200);
     }
     else if (fs_type == fsSAVE || fs_type == fsOPEN) {
         // root_or_fname should be tilde and dot expanded
@@ -614,7 +615,7 @@ GTKfilePopup::GTKfilePopup(gtk_bag *owner, FsMode mode, void *arg,
         if (fs_type == fsSAVE) {
             wb_shell = gtk_NewPopup(owner, "Path Selection", fs_quit_proc,
                 this);
-            gtk_widget_set_usize(wb_shell, 250, 200);
+            gtk_widget_set_size_request(wb_shell, 250, 200);
             nofiles = true;
         }
         else
@@ -844,7 +845,7 @@ GTKfilePopup::GTKfilePopup(gtk_bag *owner, FsMode mode, void *arg,
     
         GtkWidget *contr;
         text_scrollable_new(&contr, &wb_textarea, FNT_FIXED);
-        gtk_widget_set_usize(wb_textarea, DEF_TEXT_USWIDTH, 200);
+        gtk_widget_set_size_request(wb_textarea, DEF_TEXT_USWIDTH, 200);
         fs_scrwin = contr;
 
         GtkWidget *vbox = gtk_vbox_new(false, 2);
@@ -2136,9 +2137,9 @@ GTKfilePopup::fs_open_idle(void *arg)
 // true.  The idle function looks at the actual widget state and
 // responds accordingly.
 //
-bool
+int
 GTKfilePopup::fs_tree_select_proc(GtkTreeSelection*, GtkTreeModel*,
-    GtkTreePath*, bool, void *data)
+    GtkTreePath*, int, void *data)
 {
     GTKfilePopup *fs = static_cast<GTKfilePopup*>(data);
     if (!fs)
@@ -2221,7 +2222,8 @@ GTKfilePopup::fs_upmenu_proc(GtkWidget *widget, void *client_data)
 {
     GTKfilePopup *fs = static_cast<GTKfilePopup*>(client_data);
     if (fs) {
-        long offset = (long)gtk_object_get_data(GTK_OBJECT(widget), "offset");
+        intptr_t offset = 
+            (intptr_t)gtk_object_get_data(GTK_OBJECT(widget), "offset");
         if (offset <= 0)
             offset = 1;
         if (offset >= 256)
@@ -3248,8 +3250,8 @@ namespace {
             if (entry_dst)
                 dst = gtk_entry_get_text(GTK_ENTRY(entry_dst));
 
-            GdkDragAction action =
-                (GdkDragAction)(long)gtk_object_get_data(GTK_OBJECT(caller),
+            GdkDragAction action = (GdkDragAction)
+                    (intptr_t)gtk_object_get_data(GTK_OBJECT(caller),
                     "action");
             if (action == GDK_ACTION_MOVE || action == GDK_ACTION_COPY ||
                     action == GDK_ACTION_LINK) {
@@ -3354,7 +3356,7 @@ gtkinterf::gtk_FileAction(GtkWidget *shell, const char *src, const char *dst,
         (GtkAttachOptions)0, 2, 2);
     gtk_window_set_focus(GTK_WINDOW(popup), button);
 
-    gtk_widget_set_usize(popup, 400, -1);
+    gtk_widget_set_size_request(popup, 400, -1);
     if (shell) {
         gtk_window_set_transient_for(GTK_WINDOW(popup), GTK_WINDOW(shell));
         GRX->SetPopupLocation(GRloc(), popup, shell);
@@ -3375,8 +3377,8 @@ namespace {
     {
         GtkWidget *popup = (GtkWidget*)client_data;
         if (popup) {
-            unsigned long timer =
-                (unsigned long)gtk_object_get_data(GTK_OBJECT(popup), "timer");
+            uintptr_t timer =
+                (uintptr_t)gtk_object_get_data(GTK_OBJECT(popup), "timer");
             if (timer)
                 gtk_timeout_remove(timer);
             gtk_signal_disconnect_by_func(GTK_OBJECT(popup),
@@ -3497,7 +3499,7 @@ gtkinterf::gtk_Message(GtkWidget *shell, bool failed, const char *msg)
 {
     GtkWidget *popup = gtk_NewPopup(0,
         failed ? "Action Failed" : "Action Complete", fail_cancel, 0);
-    gtk_widget_set_usize(popup, 240, -1);
+    gtk_widget_set_size_request(popup, 240, -1);
 
     GtkWidget *form = gtk_table_new(1, 2, false);
     gtk_widget_show(form);

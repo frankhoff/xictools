@@ -32,15 +32,15 @@ case $1 in
 oses)
   echo \
 "Darwin \
-LinuxDebian9 \
-LinuxFedora29 \
-LinuxOpenSUSE42 \
+LinuxDebian10 \
+LinuxFedora32 \
+LinuxOpenSUSE15 \
 LinuxRHEL5.i686 \
 LinuxRHEL5 \
 LinuxRHEL6 \
 LinuxRHEL7 \
-LinuxUbuntu18 \
-Win32"
+LinuxUbuntu20 \
+MINGW"
 ;;
 progs)
   echo "adms fastcap fasthenry mozy mrouter vl wrspice xic"
@@ -49,11 +49,11 @@ host)
   case $2 in
   Darwin)
     echo macbook;;
-  LinuxDebian9)
+  LinuxDebian10)
     echo debby;;
-  LinuxFedora29)
+  LinuxFedora32)
     echo fedor;;
-  LinuxOpenSUSE42)
+  LinuxOpenSUSE15)
     echo byron;;
   LinuxRHEL5.i686)
     echo shelley;;
@@ -63,9 +63,9 @@ host)
     echo poe;;
   LinuxRHEL7)
     echo frost;;
-  LinuxUbuntu18)
+  LinuxUbuntu20)
     echo ubun;;
-  Win32)
+  MINGW)
     echo marlowe;;
   esac
 ;;
@@ -73,11 +73,11 @@ sfx)
   case $2 in
   Darwin)
     echo pkg;;
-  LinuxDebian9)
+  LinuxDebian10)
     echo deb;;
-  LinuxFedora29)
+  LinuxFedora32)
     echo rpm;;
-  LinuxOpenSUSE42)
+  LinuxOpenSUSE15)
     echo rpm;;
   LinuxRHEL5.i686)
     echo rpm;;
@@ -87,9 +87,9 @@ sfx)
     echo rpm;;
   LinuxRHEL7)
     echo rpm;;
-  LinuxUbuntu18)
+  LinuxUbuntu20)
     echo deb;;
-  Win32)
+  MINGW)
     echo exe;;
   esac
 ;;

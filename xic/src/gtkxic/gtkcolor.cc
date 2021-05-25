@@ -364,7 +364,7 @@ sClr::sClr(GRobject c)
     gtk_widget_set_name(entry, "AttrMenu");
     gtk_widget_show(entry);
     gtk_box_pack_start(GTK_BOX(hbox), entry, false, false, 0);
-    gtk_widget_set_usize(entry, 180, -1);
+    gtk_widget_set_size_request(entry, 180, -1);
     c_categ_menu_proc(0, (void*)(long)CATEG_ATTR);
 
     //
@@ -414,7 +414,7 @@ sClr::sClr(GRobject c)
         c_sample = da;
         gtk_widget_show(da);
         gtk_container_add(GTK_CONTAINER(frame), da);
-        gtk_drawing_area_size(GTK_DRAWING_AREA(da), 150, -1);
+        gtk_widget_set_size_request(da, 150, -1);
         hbox = gtk_hbox_new(false, 2);
         gtk_widget_show(hbox);
         gtk_box_pack_start(GTK_BOX(hbox), frame, false, true, 2);
@@ -621,7 +621,7 @@ sClr::c_categ_menu_proc(GtkWidget*, void *arg)
 {
     if (!Clr)
         return;
-    switch ((long)arg) {
+    switch ((intptr_t)arg) {
     case CATEG_ATTR:
         {
             GtkWidget *menu = gtk_menu_new();
@@ -639,7 +639,7 @@ sClr::c_categ_menu_proc(GtkWidget*, void *arg)
                 gtk_menu_append(GTK_MENU(menu), mi);
                 gtk_signal_connect(GTK_OBJECT(mi), "activate",
                     GTK_SIGNAL_FUNC(sClr::c_attr_menu_proc),
-                    (void*)(long)c->tab_indx);
+                    (void*)(uintptr_t)c->tab_indx);
             }
             if (Clr->c_display_mode == DSP()->CurMode())
                 Clr->c_mode = Menu1[0].tab_indx;
@@ -661,7 +661,7 @@ sClr::c_categ_menu_proc(GtkWidget*, void *arg)
                 gtk_menu_append(GTK_MENU(menu), mi);
                 gtk_signal_connect(GTK_OBJECT(mi), "activate",
                     GTK_SIGNAL_FUNC(sClr::c_attr_menu_proc),
-                    (void*)(long)c->tab_indx);
+                    (void*)(uintptr_t)c->tab_indx);
             }
             Clr->c_mode = Menu2[0].tab_indx;
             gtk_option_menu_set_menu(GTK_OPTION_MENU(Clr->c_entry), menu);
@@ -680,7 +680,7 @@ sClr::c_categ_menu_proc(GtkWidget*, void *arg)
                 gtk_menu_append(GTK_MENU(menu), mi);
                 gtk_signal_connect(GTK_OBJECT(mi), "activate",
                     GTK_SIGNAL_FUNC(sClr::c_attr_menu_proc),
-                    (void*)(long)c->tab_indx);
+                    (void*)(uintptr_t)c->tab_indx);
             }
             Clr->c_mode = Menu3[0].tab_indx;
             gtk_option_menu_set_menu(GTK_OPTION_MENU(Clr->c_entry), menu);
@@ -697,7 +697,7 @@ void
 sClr::c_attr_menu_proc(GtkWidget*, void *arg)
 {
     if (Clr) {
-        Clr->c_mode = (long)arg;
+        Clr->c_mode = (intptr_t)arg;
         Clr->update_color();
     }
 }

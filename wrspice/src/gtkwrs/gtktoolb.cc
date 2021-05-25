@@ -604,30 +604,30 @@ sTBhelp::sTBhelp(GRobject parent, GRobject call_btn)
         (GtkAttachOptions)(GTK_EXPAND | GTK_FILL | GTK_SHRINK),
         (GtkAttachOptions)0, 2, 2);
 
-    char *s = 0;
+    sLstr lstr;
     int i;
     if (parent == (GRobject)TB()->sh_shell) {
         for (i = 0; KW.shell(i)->word; i++)
-            KW.shell(i)->print(&s);
+            KW.shell(i)->print(&lstr);
     }
     else if (parent == (GRobject)TB()->sd_shell) {
         for (i = 0; KW.sim(i)->word; i++)
-            KW.sim(i)->print(&s);
+            KW.sim(i)->print(&lstr);
     }
     else if (parent == (GRobject)TB()->cm_shell) {
         for (i = 0; KW.cmds(i)->word; i++)
-            KW.cmds(i)->print(&s);
+            KW.cmds(i)->print(&lstr);
     }
     else if (parent == (GRobject)TB()->pd_shell) {
         for (i = 0; KW.plot(i)->word; i++)
-            KW.plot(i)->print(&s);
+            KW.plot(i)->print(&lstr);
     }
     else if (parent == (GRobject)TB()->db_shell) {
         for (i = 0; KW.debug(i)->word; i++)
-            KW.debug(i)->print(&s);
+            KW.debug(i)->print(&lstr);
     }
     else
-        s = lstring::copy("Internal error.");
+        lstr.add("Internal error.");
 
     //
     // text area
@@ -635,8 +635,7 @@ sTBhelp::sTBhelp(GRobject parent, GRobject call_btn)
     GtkWidget *hbox;
     text_scrollable_new(&hbox, &th_text, FNT_FIXED);
 
-    text_set_chars(th_text, s);
-    delete [] s;
+    text_set_chars(th_text, lstr.string());
 
     gtk_widget_add_events(th_text,
         GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK);
@@ -738,7 +737,7 @@ sTBhelp::th_cancel_proc(GtkWidget*, void *client_data)
         "caller");
     if (caller)
         GRX->Deselect(caller);
-    int type = (long)gtk_object_get_data(GTK_OBJECT(popup), "tbtype");
+    int type = (intptr_t)gtk_object_get_data(GTK_OBJECT(popup), "tbtype");
     TB()->PopDownTBhelp((TBH_type)type);
 }
 
@@ -880,7 +879,7 @@ ErrMsgBox::PopUpErr(const char *string)
 
     int wid = 400;
     int hei = 120;
-    gtk_widget_set_usize(er_popup, wid, hei);
+    gtk_widget_set_size_request(er_popup, wid, hei);
     if (er_x == 0 && er_y == 0) {
         er_x = (mwid - wid)/2;
         er_y = 0;
@@ -1779,8 +1778,7 @@ namespace {
         if (w) {
             int fw, fh;
             w->TextExtent(0, &fw, &fh);
-            gtk_drawing_area_size(GTK_DRAWING_AREA(w->Viewport()),
-                40*fw + 6, 6*fh + 6);
+            gtk_widget_set_size_request(w->Viewport(), 40*fw + 6, 6*fh + 6);
         }
     }
 
@@ -1960,8 +1958,12 @@ GTKtoolbar::tbpop(bool up)
             GtkWidget *btn = gtk_item_factory_get_widget(tb_item_factory,
                 "/Tools/Circuits");
             if (btn) {
+#if GTK_CHECK_VERSION(2,12,0)
+                gtk_widget_set_tooltip_text(btn, "List circuits");
+#else
                 gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
                     "List circuits", "");
+#endif
                 GRX->SetStatus(btn, tb->active);
             }
         }
@@ -1969,8 +1971,12 @@ GTKtoolbar::tbpop(bool up)
             GtkWidget *btn = gtk_item_factory_get_widget(tb_item_factory,
                 "/Tools/Colors");
             if (btn) {
+#if GTK_CHECK_VERSION(2,12,0)
+                gtk_widget_set_tooltip_text(btn, "Set plot colors");
+#else
                 gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
                     "Set plot colors", "");
+#endif
                 GRX->SetStatus(btn, tb->active);
             }
         }
@@ -1978,8 +1984,12 @@ GTKtoolbar::tbpop(bool up)
             GtkWidget *btn = gtk_item_factory_get_widget(tb_item_factory,
                 "/Tools/Commands");
             if (btn) {
+#if GTK_CHECK_VERSION(2,12,0)
+                gtk_widget_set_tooltip_text(btn, "Set command options");
+#else
                 gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
                     "Set command options", "");
+#endif
                 GRX->SetStatus(btn, tb->active);
             }
         }
@@ -1987,8 +1997,12 @@ GTKtoolbar::tbpop(bool up)
             GtkWidget *btn = gtk_item_factory_get_widget(tb_item_factory,
                 "/Tools/Debug");
             if (btn) {
+#if GTK_CHECK_VERSION(2,12,0)
+                gtk_widget_set_tooltip_text(btn, "Set debugging options");
+#else
                 gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
                     "Set debugging options", "");
+#endif
                 GRX->SetStatus(btn, tb->active);
             }
         }
@@ -1996,8 +2010,12 @@ GTKtoolbar::tbpop(bool up)
             GtkWidget *btn = gtk_item_factory_get_widget(tb_item_factory,
                 "/Tools/Files");
             if (btn) {
+#if GTK_CHECK_VERSION(2,12,0)
+                gtk_widget_set_tooltip_text(btn, "List search path files");
+#else
                 gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
                     "List search path files", "");
+#endif
                 GRX->SetStatus(btn, tb->active);
             }
         }
@@ -2005,8 +2023,12 @@ GTKtoolbar::tbpop(bool up)
             GtkWidget *btn = gtk_item_factory_get_widget(tb_item_factory,
                 "/Tools/Fonts");
             if (btn) {
+#if GTK_CHECK_VERSION(2,12,0)
+                gtk_widget_set_tooltip_text(btn, "Set window fonts");
+#else
                 gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
                     "Set window fonts", "");
+#endif
                 GRX->SetStatus(btn, tb->active);
             }
         }
@@ -2014,8 +2036,12 @@ GTKtoolbar::tbpop(bool up)
             GtkWidget *btn = gtk_item_factory_get_widget(tb_item_factory,
                 "/Tools/Plot Opts");
             if (btn) {
+#if GTK_CHECK_VERSION(2,12,0)
+                gtk_widget_set_tooltip_text(btn, "Set plot options");
+#else
                 gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
                     "Set plot options", "");
+#endif
                 GRX->SetStatus(btn, tb->active);
             }
         }
@@ -2023,8 +2049,12 @@ GTKtoolbar::tbpop(bool up)
             GtkWidget *btn = gtk_item_factory_get_widget(tb_item_factory,
                 "/Tools/Plots");
             if (btn) {
+#if GTK_CHECK_VERSION(2,12,0)
+                gtk_widget_set_tooltip_text(btn, "List result plot data");
+#else
                 gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
                     "List result plot data", "");
+#endif
                 GRX->SetStatus(btn, tb->active);
             }
         }
@@ -2032,8 +2062,12 @@ GTKtoolbar::tbpop(bool up)
             GtkWidget *btn = gtk_item_factory_get_widget(tb_item_factory,
                 "/Tools/Shell");
             if (btn) {
+#if GTK_CHECK_VERSION(2,12,0)
+                gtk_widget_set_tooltip_text(btn, "Set shell options");
+#else
                 gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
                     "Set shell options", "");
+#endif
                 GRX->SetStatus(btn, tb->active);
             }
         }
@@ -2041,8 +2075,12 @@ GTKtoolbar::tbpop(bool up)
             GtkWidget *btn = gtk_item_factory_get_widget(tb_item_factory,
                 "/Tools/Sim Opts");
             if (btn) {
+#if GTK_CHECK_VERSION(2,12,0)
+                gtk_widget_set_tooltip_text(btn, "Set simulation options");
+#else
                 gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
                     "Set simulation options", "");
+#endif
                 GRX->SetStatus(btn, tb->active);
             }
         }
@@ -2050,8 +2088,12 @@ GTKtoolbar::tbpop(bool up)
             GtkWidget *btn = gtk_item_factory_get_widget(tb_item_factory,
                 "/Tools/Trace");
             if (btn) {
+#if GTK_CHECK_VERSION(2,12,0)
+                gtk_widget_set_tooltip_text(btn, "List traces in effect");
+#else
                 gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
                     "List traces in effect", "");
+#endif
                 GRX->SetStatus(btn, tb->active);
             }
         }
@@ -2059,8 +2101,12 @@ GTKtoolbar::tbpop(bool up)
             GtkWidget *btn = gtk_item_factory_get_widget(tb_item_factory,
                 "/Tools/Variables");
             if (btn) {
+#if GTK_CHECK_VERSION(2,12,0)
+                gtk_widget_set_tooltip_text(btn, "List set shell variables");
+#else
                 gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
                     "List set shell variables", "");
+#endif
                 GRX->SetStatus(btn, tb->active);
             }
         }
@@ -2068,8 +2114,13 @@ GTKtoolbar::tbpop(bool up)
             GtkWidget *btn = gtk_item_factory_get_widget(tb_item_factory,
                 "/Tools/Vectors");
             if (btn) {
+#if GTK_CHECK_VERSION(2,12,0)
+                gtk_widget_set_tooltip_text(btn,
+                    "List vectors in current plot");
+#else
                 gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
                     "List vectors in current plot", "");
+#endif
                 GRX->SetStatus(btn, tb->active);
             }
         }
@@ -2081,47 +2132,131 @@ GTKtoolbar::tbpop(bool up)
         GtkItemFactory *tbif = tb_item_factory;
 
         btn = gtk_item_factory_get_widget(tbif, "/File/File Select");
-        if (btn) gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
-            "Show File Selection panel", "");
+#if GTK_CHECK_VERSION(2,12,0)
+        if (btn)
+            gtk_widget_set_tooltip_text(btn, "Show File Selection panel");
+#else
+        if (btn) {
+            gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
+                "Show File Selection panel", "");
+        }
+#endif
         btn = gtk_item_factory_get_widget(tbif, "/File/Source");
-        if (btn) gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
-            "Source input file", "");
+#if GTK_CHECK_VERSION(2,12,0)
+        if (btn)
+            gtk_widget_set_tooltip_text(btn, "Source input file");
+#else
+        if (btn) {
+            gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
+                "Source input file", "");
+        }
+#endif
         btn = gtk_item_factory_get_widget(tbif, "/File/Load");
-        if (btn) gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
-            "Load plot data file", "");
+#if GTK_CHECK_VERSION(2,12,0)
+        if (btn)
+            gtk_widget_set_tooltip_text(btn, "Load plot data file");
+#else
+        if (btn) {
+            gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
+                "Load plot data file", "");
+        }
+#endif
         btn = gtk_item_factory_get_widget(tbif, "/File/Update Tools");
-        if (btn) gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
-            "Update tool window locations", "");
+#if GTK_CHECK_VERSION(2,12,0)
+        if (btn)
+            gtk_widget_set_tooltip_text(btn, "Update tool window locations");
+#else
+        if (btn) {
+            gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
+                "Update tool window locations", "");
+        }
+#endif
         btn = gtk_item_factory_get_widget(tbif, "/File/Update WRspice");
-        if (btn) gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
-            "Update WRspice", "");
+#if GTK_CHECK_VERSION(2,12,0)
+        if (btn)
+            gtk_widget_set_tooltip_text(btn, "Update WRspice");
+#else
+        if (btn) {
+            gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
+                "Update WRspice", "");
+        }
+#endif
         if (CP.GetFlag(CP_NOTTYIO)) {
             btn = gtk_item_factory_get_widget(tbif, "/File/Close");
-            if (btn) gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
-                "Close WRspice", "");
+#if GTK_CHECK_VERSION(2,12,0)
+            if (btn)
+                gtk_widget_set_tooltip_text(btn, "Close WRspice");
+#else
+            if (btn) {
+                gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
+                    "Close WRspice", "");
+            }
+#endif
         }
         else {
             btn = gtk_item_factory_get_widget(tbif, "/File/Quit");
-            if (btn) gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
-                "Quit WRspice", "");
+#if GTK_CHECK_VERSION(2,12,0)
+            if (btn)
+                gtk_widget_set_tooltip_text(btn, "Quit WRspice");
+#else
+            if (btn) {
+                gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
+                    "Quit WRspice", "");
+            }
+#endif
         }
         btn = gtk_item_factory_get_widget(tbif, "/Edit/Text Editor");
-        if (btn) gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
-            "Pop up text editor", "");
+#if GTK_CHECK_VERSION(2,12,0)
+        if (btn)
+            gtk_widget_set_tooltip_text(btn, "Pop up text editor");
+#else
+        if (btn) {
+            gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
+                "Pop up text editor", "");
+        }
+#endif
         if (!CP.GetFlag(CP_NOTTYIO)) {
             btn = gtk_item_factory_get_widget(tbif, "/Edit/Xic");
-            if (btn) gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
-                "Start Xic", "");
+#if GTK_CHECK_VERSION(2,12,0)
+            if (btn)
+                gtk_widget_set_tooltip_text(btn, "Start Xic");
+#else
+            if (btn) {
+                gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
+                    "Start Xic", "");
+            }
+#endif
         }
         btn = gtk_item_factory_get_widget(tbif, "/Help/Help");
-        if (btn) gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
-            "Pop up Help window", "");
+#if GTK_CHECK_VERSION(2,12,0)
+        if (btn)
+            gtk_widget_set_tooltip_text(btn, "Pop up Help window");
+#else
+        if (btn) {
+            gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
+                "Pop up Help window", "");
+        }
+#endif
         btn = gtk_item_factory_get_widget(tbif, "/Help/About");
-        if (btn) gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
-            "Pop up About window", "");
+#if GTK_CHECK_VERSION(2,12,0)
+        if (btn)
+            gtk_widget_set_tooltip_text(btn, "Pop up About window");
+#else
+        if (btn) {
+            gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
+                "Pop up About window", "");
+        }
+#endif
         btn = gtk_item_factory_get_widget(tbif, "/Help/Notes");
-        if (btn) gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
-            "Show release notes", "");
+#if GTK_CHECK_VERSION(2,12,0)
+        if (btn)
+            gtk_widget_set_tooltip_text(btn, "Show release notes");
+#else
+        if (btn) {
+            gtk_tooltips_set_tip(gtk_tooltips_new(), btn,
+                "Show release notes", "");
+        }
+#endif
     }
 
     GtkWidget *hbox = gtk_hbox_new(false, 2);
@@ -2142,8 +2277,12 @@ GTKtoolbar::tbpop(bool up)
     gtk_widget_show(pixwidg);
     gtk_container_add(GTK_CONTAINER(pixbtn), pixwidg);
     gtk_box_pack_start(GTK_BOX(hbox), pixbtn, false, false, 0);
+#if GTK_CHECK_VERSION(2,12,0)
+    gtk_widget_set_tooltip_text(pixbtn, "Pop up email client");
+#else
     gtk_tooltips_set_tip(gtk_tooltips_new(), pixbtn,
         "Pop up email client", "");
+#endif
 
     // the Run button
     pixbtn = gtk_button_new();
@@ -2157,8 +2296,12 @@ GTKtoolbar::tbpop(bool up)
     gtk_widget_show(pixwidg);
     gtk_container_add(GTK_CONTAINER(pixbtn), pixwidg);
     gtk_box_pack_start(GTK_BOX(hbox), pixbtn, false, false, 0);
+#if GTK_CHECK_VERSION(2,12,0)
+    gtk_widget_set_tooltip_text(pixbtn, "Run current circuit");
+#else
     gtk_tooltips_set_tip(gtk_tooltips_new(), pixbtn,
         "Run current circuit", "");
+#endif
 
     // the Stop button
     pixbtn = gtk_button_new();
@@ -2172,8 +2315,12 @@ GTKtoolbar::tbpop(bool up)
     gtk_widget_show(pixwidg);
     gtk_container_add(GTK_CONTAINER(pixbtn), pixwidg);
     gtk_box_pack_start(GTK_BOX(hbox), pixbtn, false, false, 0);
+#if GTK_CHECK_VERSION(2,12,0)
+    gtk_widget_set_tooltip_text(pixbtn, "Pause current analysis");
+#else
     gtk_tooltips_set_tip(gtk_tooltips_new(), pixbtn,
         "Pause current analysis", "");
+#endif
 
     gtk_box_pack_start(GTK_BOX(hbox), menubar, true, true, 0);
 
@@ -2188,8 +2335,7 @@ GTKtoolbar::tbpop(bool up)
 
     int wid, hei;
     w->TextExtent(0, &wid, &hei);
-    gtk_drawing_area_size(GTK_DRAWING_AREA(w->Viewport()),
-        40*wid + 6, 6*hei + 6);
+    gtk_widget_set_size_request(w->Viewport(), 40*wid + 6, 6*hei + 6);
 
     GtkWidget *frame = gtk_frame_new(0);
     gtk_widget_show(frame);
@@ -2446,8 +2592,7 @@ GTKtoolbar::open_proc(GtkWidget*, void*, unsigned)
 namespace {
     // Source circuit, passed to pop-up.
     //
-    void
-    source_cb(const char *fname, void*)
+    void source_cb(const char *fname, void*)
     {
         if (fname && *fname) {
             wordlist wl;
@@ -2484,8 +2629,7 @@ GTKtoolbar::source_proc(GtkWidget*, void*, unsigned)
 namespace {
     // Load rawfile, passed to pop-up.
     //
-    void
-    load_cb(const char *fname, void*)
+    void load_cb(const char *fname, void*)
     {
         if (fname && *fname) {
             wordlist wl;
@@ -2947,11 +3091,11 @@ xEnt::create_widgets(xKWent *kwstruct, const char *defstring,
             // no spin - may want to add options with and without spin
             entry = gtk_entry_new();
             gtk_widget_show(entry);
-            gtk_widget_set_usize(entry, 80, -1);
+            gtk_widget_set_size_request(entry, 80, -1);
             gtk_box_pack_start(GTK_BOX(hbox), entry, true, true, 2);
             entry2 = gtk_entry_new();
             gtk_widget_show(entry2);
-            gtk_widget_set_usize(entry2, 80, -1);
+            gtk_widget_set_size_request(entry2, 80, -1);
             gtk_box_pack_start(GTK_BOX(hbox), entry2, true, true, 2);
         }
         else {
@@ -2959,7 +3103,7 @@ xEnt::create_widgets(xKWent *kwstruct, const char *defstring,
                 kwstruct->max, del, pgsize, 0);
             entry = gtk_spin_button_new(GTK_ADJUSTMENT(adj), rate, numd);
             gtk_widget_show(entry);
-            gtk_widget_set_usize(entry, 80, -1);
+            gtk_widget_set_size_request(entry, 80, -1);
             gtk_spin_button_set_numeric(GTK_SPIN_BUTTON(entry), true);
             gtk_box_pack_start(GTK_BOX(hbox), entry, false, false, 2);
             if (mode == KW_INT_2) {
@@ -2967,7 +3111,7 @@ xEnt::create_widgets(xKWent *kwstruct, const char *defstring,
                     del, pgsize, 0);
                 entry2 = gtk_spin_button_new(GTK_ADJUSTMENT(adj), rate, numd);
                 gtk_widget_show(entry2);
-                gtk_widget_set_usize(entry2, 80, -1);
+                gtk_widget_set_size_request(entry2, 80, -1);
                 gtk_spin_button_set_numeric(GTK_SPIN_BUTTON(entry2), true);
                 gtk_box_pack_start(GTK_BOX(hbox), entry2, false, false, 2);
             }
@@ -2979,7 +3123,7 @@ xEnt::create_widgets(xKWent *kwstruct, const char *defstring,
         if (kwstruct->type != VTYP_LIST || mode != KW_NO_CB) {
             entry = gtk_entry_new();
             gtk_widget_show(entry);
-            gtk_widget_set_usize(entry, 80, -1);
+            gtk_widget_set_size_request(entry, 80, -1);
             gtk_box_pack_start(GTK_BOX(hbox), entry, true, true, 2);
         }
         if (cb && mode != KW_NO_SPIN && mode != KW_NO_CB) {

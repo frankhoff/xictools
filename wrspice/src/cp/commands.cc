@@ -167,7 +167,9 @@ namespace cmdnames {
     const char *cmd_echo        = "echo";
     const char *cmd_echof       = "echof";
     const char *cmd_edit        = "edit";
+    const char *cmd_findlower   = "findlower";
     const char *cmd_findrange   = "findrange";
+    const char *cmd_findupper   = "findupper";
     const char *cmd_fourier     = "fourier";
     const char *cmd_free        = "free";
     const char *cmd_hardcopy    = "hardcopy";
@@ -193,6 +195,7 @@ namespace cmdnames {
     const char *cmd_plot        = "plot";
     const char *cmd_plotwin     = "plotwin";
     const char *cmd_print       = "print";
+    const char *cmd_printf      = "printf";
     const char *cmd_pwd         = "pwd";
     const char *cmd_pz          = "pz";
     const char *cmd_qhelp       = "qhelp";
@@ -243,6 +246,7 @@ namespace cmdnames {
     const char *cmd_unlet       = "unlet";
     const char *cmd_unset       = "unset";
     const char *cmd_usrset      = "usrset";
+    const char *cmd_vastep      = "vastep";
     const char *cmd_version     = "version";
     const char *cmd_where       = "where";
     const char *cmd_write       = "write";
@@ -372,9 +376,15 @@ sCommand CommandTab::ct_list[] = {
     sCommand( cmd_edit, com_edit, false, true, true,
       Bfile, Bfile, Bfile, Bfile, E_DEFHMASK, 0, 3, 0,
       "[filename] : Edit a spice deck and then load it in." ) ,
+    sCommand( cmd_findlower, com_findlower, false, true, true,
+      Bnone, Bnone, Bnone, Bnone, E_DEFHMASK, 0, LOTS, 0,
+      ": Find lower operating limit." ) ,
     sCommand( cmd_findrange, com_findrange, false, true, true,
       Bnone, Bnone, Bnone, Bnone, E_DEFHMASK, 0, LOTS, 0,
       ": Find operating range." ) ,
+    sCommand( cmd_findupper, com_findupper, false, true, true,
+      Bnone, Bnone, Bnone, Bnone, E_DEFHMASK, 0, LOTS, 0,
+      ": Find upper operating limit." ) ,
     sCommand( cmd_fourier, com_fourier, false, false, true,
       Bnone, Bvec, Bvec, Bvec, E_DEFHMASK, 1, LOTS, 0,
       "fund_freq vector ... : Do a fourier analysis of some data." ) ,
@@ -450,6 +460,9 @@ sCommand CommandTab::ct_list[] = {
     sCommand( cmd_print, com_print, false, false, true,
       Bvec, Bvec, Bvec, Bvec, E_BEGINNING, 0, LOTS, 0,
       "[col] expr ... : Print vector values." ) ,
+    sCommand( cmd_printf, com_printf, false, false, true,
+      Bvec, Bvec, Bvec, Bvec, E_BEGINNING, 0, LOTS, 0,
+      "[col] expr ... : Print vector values of report file." ) ,
     sCommand( cmd_pwd, com_pwd, false, false, false,
       Bnone, Bnone, Bnone, Bnone, E_DEFHMASK, 0, 0, 0,
       ": Print working directory." ) ,
@@ -601,6 +614,9 @@ sCommand CommandTab::ct_list[] = {
     sCommand( cmd_usrset, com_usrset, false, false, false,
       Bvar, Bvar, Bvar, Bvar, E_DEFHMASK, 0, LOTS, 0,
       ": Display list of option keywords." ) ,
+    sCommand( cmd_vastep, com_vastep, false, false, false,
+      Bnone, Bnone, Bnone, Bnone, E_DEFHMASK, 0, 0, 0,
+      ": Advance Verilog simulator by one tick." ) ,
     sCommand( cmd_version, com_version, false, false, false,
       Bnone, Bnone, Bnone, Bnone, E_DEFHMASK, 0, LOTS, 0,
       "[number] : Print the version number." ) ,

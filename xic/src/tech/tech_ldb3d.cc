@@ -45,6 +45,8 @@
 #include "geo_ylist.h"
 #include "cd_lgen.h"
 #include "cd_propnum.h"
+#include "si_parsenode.h"
+#include "si_lexpr.h"
 #include "tech.h"
 #include "tech_ldb3d.h"
 #include "tech_layer.h"
@@ -99,11 +101,9 @@ namespace {
         if (!Layer3d::is_conductor(ld) && !Layer3d::is_insulator(ld))
             return (false);
 
-        // Must have finite thickness.
-        if (dsp_prm(ld)->thickness() <= 0)
-            return (false);
-
-        // Do some sanity checking of the VIA layer.
+        // Do some sanity checking of the VIA layer, even if it has
+        // zero thickness.  In the latter case, if may be used in a
+        // ViaCut layer.
         if (ld->isVia()) {
             bool ok = true;
             for (sVia *vl = tech_prm(ld)->via_list(); vl; vl = vl->next()) {
@@ -132,6 +132,11 @@ namespace {
             if (!ok)
                 return (false);
         }
+
+        // Must have finite thickness.
+        if (dsp_prm(ld)->thickness() <= 0)
+            return (false);
+
         return (true);
     }
 }
@@ -162,7 +167,7 @@ Ldb3d::order_layers()
     // highest elevation in the layout, and to fill the empty space in
     // the layout up to this level with layer material.  The top
     // surface of the layout is then planar.  Then, the regular layer
-    // features are added.  If not given, CDL_CONDUCTOR and CDL_VIA
+    // features are added.  If not given, CDL_CONDUCTOR and CDL_VIA[CUT]
     // layers are "yes", all others are "no", unless the NoPlanarize 
     // variable is set, in which case no layers are planarizing by
     // default.
@@ -182,6 +187,9 @@ Ldb3d::order_layers()
         }
     }
     CDll::destroy(ll0);
+
+    if (db3_logging)
+        layer_dump(stdout);
 
     return (db3_stack != 0);
 }
@@ -347,7 +355,8 @@ namespace {
 
 bool
 Ldb3d::init_stack(CDs *sdesc, const BBox *AOI, bool is_cs,
-    const char *mask_lname, double subs_eps, double subs_thickness)
+    const char *mask_lname, double subs_eps, double subs_thickness,
+    int manh_gcnt, int manh_mode)
 {
     // Grab and order the layers to be considered, in the db3_stack
     // list.
@@ -386,6 +395,13 @@ Ldb3d::init_stack(CDs *sdesc, const BBox *AOI, bool is_cs,
     Zlist::destroy(db3_zlref);
     db3_zlref = zref;
 
+    // Smallest rectangle size to use when approximating non-Manhattan
+    // geometry.  The manh_gcnt is a "volume area" count, the number of
+    // covered grid cells for manh_min squares.
+    //
+    int manh_min =
+        manh_gcnt > 0 ? INTERNAL_UNITS(sqrt(db3_aoi.area()/manh_gcnt)) : 0;
+
     // Next, obtain geometry, and remove layers that are nonexistant
     // in the sdesc layout.  We invert dark-field layers, so that in
     // the sequence, the absence of those layers indicates "everywhere
@@ -396,7 +412,7 @@ Ldb3d::init_stack(CDs *sdesc, const BBox *AOI, bool is_cs,
     Layer3d *lp = 0, *lnxt;
     for (Layer3d *l = db3_stack; l; l = lnxt) {
         lnxt = l->next();
-        l->extract_geom(sdesc, db3_zlref);
+        l->extract_geom(sdesc, db3_zlref, manh_min, manh_mode);
         unsigned int zc = Ylist::count_zoids(l->uncut());
         if (db3_logfp && zc) {
             fprintf(db3_logfp, "Trapezoid count for %s is %u.\n",
@@ -521,24 +537,13 @@ Ldb3d::init_stack(CDs *sdesc, const BBox *AOI, bool is_cs,
     }
     for (Layer3d *l = db3_stack; l; l = l->next()) {
         if (ary[l->index()]) {
-            if (l->yl3d())
+            if (l->yl3d()) {
                 Errs()->add_error("Warning: Setup failure,\n"
                     "after 3D processing internal inconsistency detected.");
+            }
             l->set_yl3d(new glYlist3d(ary[l->index()]));
             ary[l->index()] = 0;
         }
-    }
-    int leftovr = 0;
-    for (int i = 0; i < db3_groups->num; i++) {
-        if (ary[i])
-            leftovr++;
-    }
-    if (leftovr) {
-        Errs()->add_error(
-            "Warning: Setup failure,\n"
-            "3D processing identified %d additional %s.  Are\n"
-            "dielectric edges causing conductor discontinuity?", leftovr,
-            leftovr == 1 ? "group" : "groups");
     }
     delete [] ary;
     delete g;
@@ -698,7 +703,8 @@ Layer3d::epsrel() const
 // error.
 //
 bool
-Layer3d::extract_geom(const CDs *sdesc, const Zlist *zref)
+Layer3d::extract_geom(const CDs *sdesc, const Zlist *zref, int manh_min,
+    int manh_mode)
 {
     if (!sdesc)
         return (false);
@@ -712,13 +718,24 @@ Layer3d::extract_geom(const CDs *sdesc, const Zlist *zref)
         zref = ztemp;
     }
 
-    XIrt ret;
-    Zlist *zl = sdesc->getZlist(CDMAXCALLDEPTH, l3_ldesc, zref, &ret);
+    XIrt ret = XIbad;
+    Zlist *zl = 0;
+    if (l3_ldesc->isViaCut()) {
+        // ViaCut layer -- extract geometry using the layer expression.
+
+        sVia *v = tech_prm(l3_ldesc)->via_list();
+        if (v && v->tree()) {
+            SIlexprCx cx(sdesc, CDMAXCALLDEPTH, zref);
+            ret = v->tree()->evalTree(&cx, &zl, PolarityDark);
+        }
+    }
+    else
+        zl = sdesc->getZlist(CDMAXCALLDEPTH, l3_ldesc, zref, &ret);
     if (ret != XIok) {
         Zlist::destroy(ztemp);
         return (false);
     }
-    if (l3_ldesc->isVia() || l3_ldesc->isDarkField()) {
+    if (l3_ldesc->isVia() || l3_ldesc->isViaCut() || l3_ldesc->isDarkField()) {
         Zlist *zr = Zlist::copy(zref);
         ret = Zlist::zl_andnot(&zr, zl);
         if (ret != XIok) {
@@ -729,11 +746,14 @@ Layer3d::extract_geom(const CDs *sdesc, const Zlist *zref)
     }
     Zlist::destroy(ztemp);
 
+    zl = Zlist::filter_slivers(zl, 1);
+    if (manh_min > 0.0)
+        zl = Zlist::manhattanize(zl, manh_min, manh_mode);
+
     Ylist::destroy(l3_cut);
     l3_cut = 0;
     Ylist::destroy(l3_uncut);
 
-    zl = Zlist::filter_slivers(zl, 1);
     l3_uncut = zl ? new Ylist(zl) : 0;
     glYlist3d::destroy(l3_yl3d);
     l3_yl3d = 0;
@@ -854,9 +874,8 @@ Layer3d::mk3d(bool is_cross_sect)
             planarize();
     }
     else if (!Tech()->IsNoPlanarize() &&
-            (l3_ldesc->isVia() || l3_ldesc->isConductor()))
+            (l3_ldesc->flags() & (CDL_CONDUCTOR | CDL_VIA | CDL_VIACUT)))
         planarize();
-
 }
 
 
@@ -980,7 +999,7 @@ Layer3d::is_conductor(const CDl *ld)
     if (ld->flags() &
             (CDL_CONDUCTOR | CDL_ROUTING | CDL_GROUNDPLANE | CDL_IN_CONTACT))
         return (true);
-    if (ld->flags() & (CDL_VIA | CDL_DIELECTRIC))
+    if (ld->flags() & (CDL_VIA | CDL_VIACUT | CDL_DIELECTRIC))
         return (false);
     if (tech_prm(ld)->rho() > 0.0 || tech_prm(ld)->ohms_per_sq() > 0.0 ||
             tech_prm(ld)->lambda() > 0.0)
@@ -997,7 +1016,7 @@ Layer3d::is_insulator(const CDl *ld)
 {
     if (!ld)
         return (false);
-    return (ld->flags() & (CDL_VIA | CDL_DIELECTRIC));
+    return (ld->flags() & (CDL_VIA | CDL_VIACUT | CDL_DIELECTRIC));
 }
 
 

@@ -152,6 +152,27 @@ private:
 // Return from sCHECKprms::evaluate.
 enum CBret { CBok, CBfail, CBendit };
 
+// Hard-wired names for generated range vectors.
+extern const char *kwc_opmin1;
+extern const char *kwc_opmax1;
+extern const char *kwc_opmin2;
+extern const char *kwc_opmax2;
+extern const char *kwc_range;
+extern const char *kwc_r_scale;
+
+// Hard-wired names for misc. range vectors.
+extern const char *kwc_checkFAIL;
+extern const char *kwc_checkPNTS;
+extern const char *kwc_checkINIT;
+
+// Hard-wired names for user-given input range vectors.
+extern const char *kwc_checkVAL1;
+extern const char *kwc_checkSTP1;
+extern const char *kwc_checkDEL1;
+extern const char *kwc_checkVAL2;
+extern const char *kwc_checkSTP2;
+extern const char *kwc_checkDEL2;
+
 // Interface for asynchronous/remote chained analysis.  This structure
 // is used to store parameters used in operating range and Monte Carlo
 // analysis.
@@ -163,7 +184,9 @@ struct sCHECKprms : public sOUTcontrol
     sCHECKprms();
     ~sCHECKprms();
 
+    void find_oprange(wordlist*, bool dolower=true, bool doupper=true);
     int setup(checkargs&, wordlist*);
+    int resetup(wordlist**);
     int parseRange(wordlist**);
     void initRange();
     void initNames();
@@ -171,12 +194,12 @@ struct sCHECKprms : public sOUTcontrol
     void initOutMode(bool, bool, bool);
     void initCheckPnts();
     void initInput(double, double);
-    bool initial();
+    bool initial(bool=false);
     bool loop();
-    int trial(int, int, double, double);
+    int trial(int, int, double, double, bool=false);
     CBret evaluate();
     void findEdge(const char*, const char*);
-    bool findRange();
+    bool findRange(bool, bool);
 
     static void setMfilePlotname(const char*, const char*);
     static const char *mfilePlotname(const char*);
@@ -195,7 +218,6 @@ struct sCHECKprms : public sOUTcontrol
     void set_pflag(int i, int v) { ch_flags[i] = v; }
 
     void set_batchmode(bool b)  { ch_batchmode = b; }
-    void set_no_output(bool b)  { ch_no_output = b; }
     void set_use_remote(bool b) { ch_use_remote = b; }
     bool monte()                const { return (ch_monte); }
     void set_monte(bool b)      { ch_monte = b; }
@@ -235,10 +257,13 @@ struct sCHECKprms : public sOUTcontrol
     void set_iterno(int n)      { ch_iterno = n; }
 
 private:
+
     // check.cc
     void set_rangevec();
-    bool findrange1(double, int, bool, bool);
-    bool findrange2(double, int, bool, bool);
+    bool find_upper1(double, int);
+    bool find_lower1(double, int);
+    bool find_upper2(double, int);
+    bool find_lower2(double, int);
     bool findext1(int, double*, double, double);
     bool findext2(int, double, double*, double);
     void addpoint(int, int, bool);
@@ -251,7 +276,6 @@ private:
     char *ch_tmpoutname;    // Redirect stdout filename.
     int ch_graphid;         // Graph id if plotting.
     bool ch_batchmode;      // If true, no user prompts.
-    bool ch_no_output;      // Supress output recording.
     bool ch_use_remote;     // Submit analysis to servers.
     bool ch_monte;          // Monte Carlo analysis.
     bool ch_doall;          // Check all points.
@@ -278,6 +302,26 @@ private:
                             //  Only used if mode = OutcCheck*.
     const char *ch_segbase; // Segment basename for OutcCheckSeg.
     wordlist *ch_cmdline;   // Command line, wordlist.
+
+    // Hard-wired names for generated range vectors.
+    static const char *OPLO1;
+    static const char *OPHI1;
+    static const char *OPLO2;
+    static const char *OPHI2;
+    static const char *OPVEC;
+    static const char *OPSCALE;
+
+    static const char *checkFAIL;
+    static const char *checkPNTS;
+    static const char *checkINIT;
+
+    // Hard-wired names for user-given input range vectors.
+    static const char *checkVAL1;
+    static const char *checkSTP1;
+    static const char *checkDEL1;
+    static const char *checkVAL2;
+    static const char *checkSTP2;
+    static const char *checkDEL2;
 
     static sHtab *ch_plotnames; // mplot filename to plotname map
 
@@ -464,7 +508,7 @@ struct IFoutput
     void stopCmd(wordlist*);
     void measureCmd(wordlist*);
     void stop2Cmd(wordlist*);
-    void statusCmd(char**);
+    void statusCmd(sLstr*);
     void deleteCmd(wordlist*);
     void initRunops(sRunDesc*);
     void setRunopActive(int, bool);
@@ -472,6 +516,7 @@ struct IFoutput
     void checkRunops(sRunDesc*, double);
     int pauseTest(sRunDesc*);
     bool hasRunop(unsigned int);
+    bool hasIntervalMeasure();
 
     // save.cc
     void saveCmd(wordlist*);
@@ -501,7 +546,7 @@ struct IFoutput
     void vecSet(const char*, const char*, bool = false, const char** = 0);
     void vecGc(bool = false);
     static bool vecEq(sDataVec*, sDataVec*);
-    void vecPrintList(wordlist*, char**);
+    void vecPrintList(wordlist*, sLstr*);
 
     sRunopDb *runops()          { return (o_runops); }
 

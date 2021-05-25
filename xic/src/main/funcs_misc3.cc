@@ -191,11 +191,13 @@ namespace {
         bool IFisLayerGround(Variable*, Variable*, void*);
         bool IFisLayerContact(Variable*, Variable*, void*);
         bool IFisLayerVia(Variable*, Variable*, void*);
+        bool IFisLayerViaCut(Variable*, Variable*, void*);
         bool IFisLayerDielectric(Variable*, Variable*, void*);
         bool IFisLayerDarkField(Variable*, Variable*, void*);
         bool IFgetLayerThickness(Variable*, Variable*, void*);
         bool IFgetLayerRho(Variable*, Variable*, void*);
         bool IFgetLayerResis(Variable*, Variable*, void*);
+        bool IFgetLayerTau(Variable*, Variable*, void*);
         bool IFgetLayerEps(Variable*, Variable*, void*);
         bool IFgetLayerCap(Variable*, Variable*, void*);
         bool IFgetLayerCapPerim(Variable*, Variable*, void*);
@@ -339,11 +341,13 @@ namespace {
     PY_FUNC(IsLayerGround,          1,  IFisLayerGround);
     PY_FUNC(IsLayerContact,         1,  IFisLayerContact);
     PY_FUNC(IsLayerVia,             1,  IFisLayerVia);
+    PY_FUNC(IsLayerViaCut,          1,  IFisLayerViaCut);
     PY_FUNC(IsLayerDielectric,      1,  IFisLayerDielectric);
     PY_FUNC(IsLayerDarkField,       1,  IFisLayerDarkField);
     PY_FUNC(GetLayerThickness,      1,  IFgetLayerThickness);
     PY_FUNC(GetLayerRho,            1,  IFgetLayerRho);
     PY_FUNC(GetLayerResis,          1,  IFgetLayerResis);
+    PY_FUNC(GetLayerTau,            1,  IFgetLayerTau);
     PY_FUNC(GetLayerEps,            1,  IFgetLayerEps);
     PY_FUNC(GetLayerCap,            1,  IFgetLayerCap);
     PY_FUNC(GetLayerCapPerim,       1,  IFgetLayerCapPerim);
@@ -484,11 +488,13 @@ namespace {
       cPyIf::register_func("IsLayerGround",          pyIsLayerGround);
       cPyIf::register_func("IsLayerContact",         pyIsLayerContact);
       cPyIf::register_func("IsLayerVia",             pyIsLayerVia);
+      cPyIf::register_func("IsLayerViaCut",          pyIsLayerViaCut);
       cPyIf::register_func("IsLayerDielectric",      pyIsLayerDielectric);
       cPyIf::register_func("IsLayerDarkField",       pyIsLayerDarkField);
       cPyIf::register_func("GetLayerThickness",      pyGetLayerThickness);
       cPyIf::register_func("GetLayerRho",            pyGetLayerRho);
       cPyIf::register_func("GetLayerResis",          pyGetLayerResis);
+      cPyIf::register_func("GetLayerTau",            pyGetLayerTau);
       cPyIf::register_func("GetLayerEps",            pyGetLayerEps);
       cPyIf::register_func("GetLayerCap",            pyGetLayerCap);
       cPyIf::register_func("GetLayerCapPerim",       pyGetLayerCapPerim);
@@ -632,11 +638,13 @@ namespace {
     TCL_FUNC(IsLayerGround,          1,  IFisLayerGround);
     TCL_FUNC(IsLayerContact,         1,  IFisLayerContact);
     TCL_FUNC(IsLayerVia,             1,  IFisLayerVia);
+    TCL_FUNC(IsLayerViaCut,          1,  IFisLayerViaCut);
     TCL_FUNC(IsLayerDielectric,      1,  IFisLayerDielectric);
     TCL_FUNC(IsLayerDarkField,       1,  IFisLayerDarkField);
     TCL_FUNC(GetLayerThickness,      1,  IFgetLayerThickness);
     TCL_FUNC(GetLayerRho,            1,  IFgetLayerRho);
     TCL_FUNC(GetLayerResis,          1,  IFgetLayerResis);
+    TCL_FUNC(GetLayerTau,            1,  IFgetLayerTau);
     TCL_FUNC(GetLayerEps,            1,  IFgetLayerEps);
     TCL_FUNC(GetLayerCap,            1,  IFgetLayerCap);
     TCL_FUNC(GetLayerCapPerim,       1,  IFgetLayerCapPerim);
@@ -777,11 +785,13 @@ namespace {
       cTclIf::register_func("IsLayerGround",          tclIsLayerGround);
       cTclIf::register_func("IsLayerContact",         tclIsLayerContact);
       cTclIf::register_func("IsLayerVia",             tclIsLayerVia);
+      cTclIf::register_func("IsLayerViaCut",          tclIsLayerViaCut);
       cTclIf::register_func("IsLayerDielectric",      tclIsLayerDielectric);
       cTclIf::register_func("IsLayerDarkField",       tclIsLayerDarkField);
       cTclIf::register_func("GetLayerThickness",      tclGetLayerThickness);
       cTclIf::register_func("GetLayerRho",            tclGetLayerRho);
       cTclIf::register_func("GetLayerResis",          tclGetLayerResis);
+      cTclIf::register_func("GetLayerTau",            tclGetLayerTau);
       cTclIf::register_func("GetLayerEps",            tclGetLayerEps);
       cTclIf::register_func("GetLayerCap",            tclGetLayerCap);
       cTclIf::register_func("GetLayerCapPerim",       tclGetLayerCapPerim);
@@ -931,11 +941,13 @@ cMain::load_funcs_misc3()
   SIparse()->registerFunc("IsLayerGround",          1,  IFisLayerGround);
   SIparse()->registerFunc("IsLayerContact",         1,  IFisLayerContact);
   SIparse()->registerFunc("IsLayerVia",             1,  IFisLayerVia);
+  SIparse()->registerFunc("IsLayerViaCut",          1,  IFisLayerViaCut);
   SIparse()->registerFunc("IsLayerDielectric",      1,  IFisLayerDielectric);
   SIparse()->registerFunc("IsLayerDarkField",       1,  IFisLayerDarkField);
   SIparse()->registerFunc("GetLayerThickness",      1,  IFgetLayerThickness);
   SIparse()->registerFunc("GetLayerRho",            1,  IFgetLayerRho);
   SIparse()->registerFunc("GetLayerResis",          1,  IFgetLayerResis);
+  SIparse()->registerFunc("GetLayerTau",            1,  IFgetLayerTau);
   SIparse()->registerFunc("GetLayerEps",            1,  IFgetLayerEps);
   SIparse()->registerFunc("GetLayerCap",            1,  IFgetLayerCap);
   SIparse()->registerFunc("GetLayerCapPerim",       1,  IFgetLayerCapPerim);
@@ -3616,6 +3628,24 @@ misc3_funcs::IFisLayerVia(Variable *res, Variable *args, void*)
 }
 
 
+// (int) IsLayerViaCut(stdlyr)
+//
+// The function returns 1 if the ViaCut keyword is given for the layer
+// indicated by the argument, which is a standard layer argument or a
+// derived layer name string, 0 otherwise.
+//
+bool
+misc3_funcs::IFisLayerViaCut(Variable *res, Variable *args, void*)
+{
+    CDl *ld;
+    ARG_CHK(arg_layer(args, 0, &ld, true))
+
+    res->type = TYP_SCALAR;
+    res->content.value = ld->isViaCut();
+    return (OK);
+}
+
+
 // (int) IsLayerDielectric(stdlyr)
 //
 // The function returns 1 if the Dielectric keyword is given for the
@@ -3715,6 +3745,26 @@ misc3_funcs::IFgetLayerResis(Variable *res, Variable *args, void*)
         rsh = 1e6*tech_prm(ld)->rho()/dsp_prm(ld)->thickness();
 
     res->content.value = rsh;
+    return (OK);
+}
+
+
+// (real) GetLayerTau(stdlyr)
+//
+// The function returns the Drude model relaxation time associated
+// with the layer.  This will add kinetic inductance to a normal
+// metal or resistive layer, if a nonzero resistance has been set. 
+// The effective complex conductivity is sigma/(1-i*omega*tau) at
+// frequency omega.
+//
+bool
+misc3_funcs::IFgetLayerTau(Variable *res, Variable *args, void*)
+{
+    CDl *ld;
+    ARG_CHK(arg_layer(args, 0, &ld, true))
+
+    res->type = TYP_SCALAR;
+    res->content.value = tech_prm(ld)->tau();
     return (OK);
 }
 
@@ -4242,7 +4292,7 @@ misc3_funcs::IFflatGenNext(Variable *res, Variable *args, void*)
     if (hdl) {
         if (hdl->type != HDLgen)
             return (BAD);
-        int hid = (long)hdl->iterator();
+        int hid = (intptr_t)hdl->iterator();
         res->type = TYP_HANDLE;
         res->content.value = hid;
     }

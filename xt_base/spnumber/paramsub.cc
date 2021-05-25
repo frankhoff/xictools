@@ -48,7 +48,6 @@
 #include "input.h"
 #include "inpline.h"
 #include "ttyio.h"
-#include "reltag.h"
 #include "output.h"
 #include "spnumber/paramsub.h"
 #include "spnumber/spnumber.h"
@@ -64,14 +63,22 @@ struct ParseNode;
 
 
 char *sParamTab::errString = 0;
+void(*sParamTab::pt_set_predefs)(sParamTab*);
 
 namespace {
     char *ptok(char**, char**, char**);
     char *nametok(const char**, const char**, bool);
     char *valtok(const char**);
 
-    // Valid chars for first char in parameter name.
-    inline bool is_namechar(char c) { return (isalpha(c) || c == '_'); }
+    // Valid parameter name, also used for set/let LHS in WRspice.
+    inline bool is_namestr(const char *s)
+    {
+        if (!s)
+            return (false);
+        if (*s == '@')
+            s++;
+        return (isalpha(*s) || *s == '_');
+    }
 }
 
 
@@ -88,43 +95,7 @@ sParamTab::~sParamTab()
     pt_table->clear_data(&free_param, 0);
     delete pt_table;
     delete pt_rctab;
-}
-
-
-// Add the predefined parameters.  This is called from the
-// constructor.
-//
-// Presently, there are two such parameters, both are read-only.
-//
-// WRSPICE_PROGRAM
-// This is always set (to 1).  It allows testing for WRspice-specific
-// parts in input files with a construct like
-//    .param WRSPICE_PROGRAM=0  $ does nothing in WRspice
-//    .if WRSPICE_PROGRAM=1
-//    <wrspice-specific input>
-//    .else
-//    <other spice input>
-//    .endif
-//
-// WRSPICE_RELEASE
-// This is set to the five-digit release code.
-//
-void
-sParamTab::add_predefs()
-{
-#ifdef WRSPICE
-    sParam *prm = new sParam(lstring::copy("WRSPICE_PROGRAM"),
-        lstring::copy("1"));
-    prm->set_readonly();
-    pt_table->add(prm->name(), prm);
-
-#define STRINGIFY(foo) #foo
-#define XSTRINGIFY(x) STRINGIFY(x)
-    prm = new sParam(lstring::copy("WRSPICE_RELEASE"),
-        lstring::copy(XSTRINGIFY(WRS_RELEASE_NUM)));
-    prm->set_readonly();
-    pt_table->add(prm->name(), prm);
-#endif
+    delete pt_ctrl;
 }
 
 
@@ -141,12 +112,8 @@ sParamTab::copy(const sParamTab *pt)
     sHent *h;
     while ((h = gen.next()) != 0) {
         sParam *po = (sParam*)h->data();
-        sParam *p = new sParam(lstring::copy(po->name()),
-            lstring::copy(po->sub()));
-        if (po->collapsed())
-            p->set_collapsed();
-        if (po->readonly())
-            p->set_readonly();
+        sParam *p = new sParam(lstring::copy(po->name()), 0);
+        p->update(po);
         pnew->pt_table->add(p->name(), p);
     }
     return (pnew);
@@ -252,13 +219,13 @@ sParamTab::extract_params(sParamTab *thispt, const char *str)
                 if (p) {
                     delete [] p->sub();
                     p->set_sub(psub);
-                    p->set_args(al);
+                    p->set_arglist(al);
                     delete [] pname;
                 }
             }
             if (!p) {
                 p = new sParam(pname, psub);
-                p->set_args(al);
+                p->set_arglist(al);
                 if (!ptab)
                     ptab = new sParamTab;
                 ptab->pt_table->add(pname, p);
@@ -318,10 +285,6 @@ sParamTab::update(sParamTab *thispt, const sParamTab *ptab)
         else {
             sParam *pnew = new sParam(lstring::copy(p->name()), 0);
             pnew->update(p);
-            if (p->collapsed())
-                pnew->set_collapsed();
-            if (p->readonly())
-                pnew->set_readonly();
             p0->pt_table->add(pnew->name(), pnew);
         }
     }
@@ -347,7 +310,7 @@ sParamTab::update(const char *str)
             if (p && !p->readonly()) {
                 delete [] p->sub();
                 p->set_sub(psub);
-                p->set_args(al);
+                p->set_arglist(al);
             }
             else {
                 delete [] psub;
@@ -363,8 +326,12 @@ sParamTab::update(const char *str)
             }
             else {
                 if (p && !p->readonly()) {
-                    delete [] p->sub();
-                    p->set_sub(psub);
+                    // Expand!  Needed for "param=param" recursion.
+                    line_subst(&psub);
+                    if (psub != p->sub()) {
+                        delete [] p->sub();
+                        p->set_sub(psub);
+                    }
                 }
                 else
                     delete [] psub;
@@ -375,48 +342,38 @@ sParamTab::update(const char *str)
 }
 
 
-// Evaluate numerically the expanded substitution string, no error,
-// just returns 0.
+// Evaluate numerically the expanded substitution string.
 //
 double
-sParamTab::eval(const sParam *p) const
+sParamTab::eval(const sParam *p, bool *err) const
 {
     if (p) {
         char *expr = lstring::copy(p->sub());
         line_subst(&expr);
         const char *eptr = expr;
+        if (err)
+            *err = false;
 #ifdef WRSPICE
-        pnode *pn = Sp.GetPnode(&eptr, true, true);
+        pnode *pn = Sp.GetPnode(&eptr, true, true, true);
         delete [] expr;
-        if (!pn)
-            return (0.0);
-        sDataVec *dv = Sp.Evaluate(pn);
-        delete pn;
+        sDataVec *dv = 0;
+        if (pn) {
+            dv = Sp.Evaluate(pn);
+            delete pn;
+        }
         if (dv)
             return (dv->realval(0));
+        else if (err)
+            *err = true;
 #else
         double *dp = SCD()->evalExpr(&eptr);
         if (dp)
             return (*dp);
+        else if (err)
+            *err = true;
 #endif
     }
     return (0.0);
-}
-
-
-// Expand all values.
-//
-void
-sParamTab::collapse()
-{
-    sHgen gen(pt_table);
-    sHent *h;
-    while ((h = gen.next()) != 0) {
-        sParam *p = (sParam*)h->data();
-        char *sub = p->sub();
-        line_subst(&sub);
-        p->set_sub(sub);
-    }
 }
 
 
@@ -563,14 +520,7 @@ sParamTab::defn_subst(const sParamTab *thispt, char **str, PTmode mode,
         }
 
         char *tsub = lstring::copy(psub);
-        if (*psub == '\'')
-            ptab->squote_subst(&psub);
-        else if (ptab->subst(&psub)) {
-            if (*psub == '\'')
-                ptab->squote_subst(&psub);
-            else
-                ptab->line_subst(&psub);
-        }
+        ptab->line_subst(&psub);
 
         if (mode == PTsubc) {
             // We're parsing a .subckt line.  'this' is a COPY of the
@@ -643,7 +593,7 @@ sParamTab::line_subst(char **str) const
             squote_subst(&tok);
             chg = true;
         }
-        else if (is_namechar(*tok)) {
+        else if (is_namestr(tok)) {
             char *ltok = lstring::copy(tok);
             if (subst(&tok)) {
                 pt_rctab->add(ltok, (void*)1);
@@ -705,14 +655,12 @@ sParamTab::line_subst(char **str) const
 void
 sParamTab::squote_subst(char **str) const
 {
-    const char *msg = "Evaluation failed: %s.";
-
-    char *expr;
-    if (pt_no_sqexp || strchr(*str, '$')) {
-        // We aren't single-quote expanding, ot The expression
+    if (pt_ctrl->no_sqexp || strchr(*str, '$')) {
+        // We aren't single-quote expanding, or The expression
         // contains unexpanded shell variables.  In this case expand
         // any parameters, and leave the result in single quotes.
 
+        char *expr;
         bool quoted = false;
         if (**str == '\'') {
             // strip quotes;
@@ -737,6 +685,79 @@ sParamTab::squote_subst(char **str) const
         *str = expr;
         return;
     }
+
+    evaluate(str);
+}
+
+
+// If tok is a parameter, perform the substitution and return true.
+//
+bool
+sParamTab::subst(char **tok) const
+{
+    // Special case, parameter definition check:  def(foo) is replaced
+    // by 1/0 if foo is defined/undefined.
+    char *t = *tok;
+    if (lstring::ciprefix("def(", t)) {
+        t += 4;
+        int n = strlen(t) - 1;
+        if (t[n] == ')')
+            t[n] = 0;
+        sParam *p = (sParam*)get(t);
+        if (p)
+            (*tok)[0] = '1';
+        else
+            (*tok)[0] = '0';
+        (*tok)[1] = 0;
+        return (true);
+    }
+
+    sParam *p = (sParam*)get(*tok);
+    if (p) {
+        if (sHtab::get(pt_rctab, *tok) != 0) {
+            // Uh-oh, we're already subbing this token, there is a
+            // recursive loop.
+            delete [] errString;
+            sLstr lstr;
+            lstr.add("Recursion detected, parameter name: ");
+            lstr.add(p->name());
+            lstr.add(" value: ");
+            lstr.add(p->sub());
+            errString = lstr.string_trim();
+            return (false);
+        }
+        pt_rctab->add(p->name(), p);
+
+        if (pt_ctrl->collapse) {
+            if (!p->collapsed())
+                p->collapse(this);
+        }
+
+        delete [] *tok;
+        if (*p->sub() == '"') {
+            // strip quotes
+            *tok = lstring::copy(p->sub()+1);
+            char *tt = *tok + strlen(*tok) - 1;
+            if (*tt == '"')
+                *tt = 0;
+        }
+        else {
+            *tok = lstring::copy(p->sub());
+            evaluate(tok);
+        }
+
+        pt_rctab->remove(p->name());
+        return (true);
+    }
+    return (false);
+}
+
+
+void
+sParamTab::evaluate(char **str) const
+{
+    const char *msg = "Evaluation failed: %s.";
+    char *expr;
 
 #ifdef WRSPICE
     bool quoted = false;
@@ -838,7 +859,7 @@ sParamTab::squote_subst(char **str) const
     delete [] *str;
     *str = lstring::copy(SPnum.printnum(dv->realval(0), dv->units(), false));
     OP.vecGc(true);
-#else
+#else  // WRSPICE
     const char *eptr = expr;
     double *dp = SCD()->evalExpr(&eptr);
     if (!dp) {
@@ -852,55 +873,7 @@ sParamTab::squote_subst(char **str) const
     delete [] expr;
     delete [] *str;
     *str = lstring::copy(SPnum.printnum(*dp));
-#endif
-}
-
-
-// If tok is a parameter, perform the substitution.
-//
-bool
-sParamTab::subst(char **tok) const
-{
-    sParam *p = (sParam*)get(*tok);
-    if (p) {
-        if (sHtab::get(pt_rctab, *tok) != 0) {
-            // Uh-oh, we're already subbing this token, there is a
-            // recursive loop.
-            delete [] errString;
-            sLstr lstr;
-            lstr.add("Recursion detected, parameter name: ");
-            lstr.add(p->name());
-            lstr.add(" value: ");
-            lstr.add(p->sub());
-            errString = lstr.string_trim();
-            return (false);
-        }
-        pt_rctab->add(p->name(), p);
-
-        if (pt_collapse) {
-            if (!p->collapsed()) {
-                p->set_collapsed();
-                char *sub = p->sub();
-                line_subst(&sub);
-                p->set_sub(sub);
-            }
-        }
-
-        delete [] *tok;
-        if (*p->sub() == '"') {
-            // strip quotes
-            *tok = lstring::copy(p->sub()+1);
-            char *tt = *tok + strlen(*tok) - 1;
-            if (*tt == '"')
-                *tt = 0;
-        }
-        else
-            *tok = lstring::copy(p->sub());
-
-        pt_rctab->remove(p->name());
-        return (true);
-    }
-    return (false);
+#endif  // WRSPICE
 }
 
 
@@ -929,7 +902,7 @@ sParamTab::tokenize(const char **pstr, char **pname, char **psub,
                 // viable parameter definition.
                 mode = PTgeneral;
             else {
-                if (!is_namechar(*name)) {
+                if (!is_namestr(name)) {
                     sLstr lstr;
                     lstr.add("Bad parameter name: ");
                     lstr.add(name);
@@ -950,7 +923,7 @@ sParamTab::tokenize(const char **pstr, char **pname, char **psub,
         }
         if (**pstr == '=')
             break;
-        if (mode == PTsngl && (is_namechar(*name) || *name == '\'')) {
+        if (mode == PTsngl && (is_namestr(name) || *name == '\'')) {
             // Found an isolated name or expression, return it.
             *pname = name;
             *psub = 0;
@@ -962,7 +935,7 @@ sParamTab::tokenize(const char **pstr, char **pname, char **psub,
         delete [] name;
         return (false);
     }
-    if (!is_namechar(*name)) {
+    if (!is_namestr(name)) {
         sLstr lstr;
         lstr.add("Bad parameter name: ");
         lstr.add(name);
@@ -1029,6 +1002,38 @@ namespace {
         else {
             while (*str && !(isspace(*str) || lstring::instr(tchars, *str)))
                 lstr.add_c(*str++);
+        }
+
+        // Special case, return "def(foo)" as one token.  White space
+        // can appear around the parens, but is stripped in returned
+        // token.
+        //
+        if (lstring::cieq(lstr.string(), "def")) {
+            char *s0 = str;
+            bool found = false;
+            while (isspace(*str))
+                str++;
+            if (*str == '(') {
+                str++;
+                while (isspace(*str))
+                    str++;
+                while (*str && !lstring::instr(tchars, *str))
+                    str++;
+                while (isspace(*str))
+                    str++;
+                if (*str == ')') {
+                    str++;
+                    lstr.add_c('(');
+                    while (s0 < str) {
+                        if (*s0 != '(' && *s0 != ')' && !isspace(*s0))
+                            lstr.add_c(*s0);
+                        s0++;
+                    }
+                    found = true;
+                }
+            }
+            if (!found)
+                str = s0;
         }
         *end = str;
 
@@ -1138,10 +1143,12 @@ namespace {
             return (0);
         }
         const char *start = str;
+        bool keepws = false;
         if (*str == '\'' || *str == '"') {
             // Quoted.  Keep the quote marks, the quoted quantity is
             // the value.
 
+            keepws = true;
             char c = *str++;
             while (*str) {
                 if (*str == c && *(str-1) != '\\')
@@ -1188,7 +1195,7 @@ namespace {
         char *val = new char[str - start + 1];
         char *n = val;
         for (const char *t = start; t < str; t++) {
-            if (!isspace(*t))
+            if (keepws || !isspace(*t))
                 *n++ = *t;
         }
         *n = 0;

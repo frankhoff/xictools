@@ -126,8 +126,8 @@ namespace {
 
         private:
             static void dv_cancel_proc(GtkWidget*, void*);
-            static bool dv_select_proc(GtkTreeSelection*, GtkTreeModel*,
-                GtkTreePath*, bool, void*);
+            static int dv_select_proc(GtkTreeSelection*, GtkTreeModel*,
+                GtkTreePath*, int, void*);
             static bool dv_focus_proc(GtkWidget*, GdkEvent*, void*);
 
             GtkWidget *dv_popup;
@@ -528,7 +528,7 @@ sDbg::sDbg(GRobject c)
     gtk_signal_connect(GTK_OBJECT(wb_shell), "key-press-event",
         GTK_SIGNAL_FUNC(db_key_dn_hdlr), 0);
 
-    gtk_widget_set_usize(wb_textarea, DEF_WIDTH, DEF_HEIGHT);
+    gtk_widget_set_size_request(wb_textarea, DEF_WIDTH, DEF_HEIGHT);
 
     // The font change pop-up uses this to redraw the widget
     gtk_object_set_data(GTK_OBJECT(wb_textarea), "font_changed",
@@ -2009,7 +2009,7 @@ sDbV::sDbV(void *p)
     //
     GtkWidget *swin = gtk_scrolled_window_new(0, 0);
     gtk_widget_show(swin);
-    gtk_widget_set_usize(swin, 220, 200);
+    gtk_widget_set_size_request(swin, 220, 200);
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(swin),
         GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
     gtk_container_set_border_width(GTK_CONTAINER(swin), 2);
@@ -2031,8 +2031,7 @@ sDbV::sDbV(void *p)
 
     GtkTreeSelection *sel =
         gtk_tree_view_get_selection(GTK_TREE_VIEW(dv_list));
-    gtk_tree_selection_set_select_function(sel,
-        (GtkTreeSelectionFunc)dv_select_proc, 0, 0);
+    gtk_tree_selection_set_select_function(sel, dv_select_proc, 0, 0);
     // TreeView bug hack, see note with handlers.   
     gtk_signal_connect(GTK_OBJECT(dv_list), "focus",
         GTK_SIGNAL_FUNC(dv_focus_proc), this);
@@ -2114,9 +2113,9 @@ sDbV::dv_cancel_proc(GtkWidget*, void *client_data)
 // prevents actually accepting the selection, so this is just a fancy
 // button-press handler.
 //
-bool
+int
 sDbV::dv_select_proc(GtkTreeSelection*, GtkTreeModel *store,
-    GtkTreePath *path, bool issel, void*)
+    GtkTreePath *path, int issel, void*)
 {
     if (Dbg && Dbg->db_vars_pop) {
         if (issel)

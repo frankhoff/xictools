@@ -41,7 +41,10 @@
 #include <string.h>
 #include "vl_st.h"
 
-extern char *vl_strdup(const char*);
+namespace vl {
+    char *vl_strdup(const char*);
+}
+using namespace vl;
 
 #define ST_DEFAULT_MAX_DENSITY 5
 #define ST_DEFAULT_INIT_TABLE_SIZE 11
@@ -49,13 +52,14 @@ extern char *vl_strdup(const char*);
 #define ST_DEFAULT_REORDER_FLAG 0
 
 
-inline int
-do_hash(const char *string, int modulus)
-{
-    int c, val = 0;
-    while ((c = *string++) != '\0')
-        val = val*997 + c;
-    return ((val < 0) ? -val : val)%modulus;
+namespace {
+    inline int do_hash(const char *string, int modulus)
+    {
+        int c, val = 0;
+        while ((c = *string++) != '\0')
+            val = val*997 + c;
+        return ((val < 0) ? -val : val)%modulus;
+    }
 }
 
 
@@ -254,7 +258,7 @@ st_generator::next(const char **key_p, void *value_p)
 
 
 //
-// The set manipulation functions, used to be defined in set.cc
+// The set manipulation functions, used to be defined in set.cc.
 //
 
 void

@@ -51,10 +51,12 @@
 //
 
 // Variables
+#define VA_FcArgs               "FcArgs"
 #define VA_FcForeg              "FcForeg"
 #define VA_FcLayerName          "FcLayerName"
 #define VA_FcMonitor            "FcMonitor"
 #define VA_FcPanelTarget        "FcPanelTarget"
+#define VA_FcPath               "FcPath"
 #define VA_FcPlaneBloat         "FcPlaneBloat"
 #define VA_FcUnits              "FcUnits"
 
@@ -210,6 +212,8 @@ struct fcLayout : public Ldb3d
     bool setup_refine(double);
     bool write_panels(FILE*, int, int, e_unit);
     fcGrpPtr *group_points() const;
+
+    static void clear_dbg_zlist();
 
 private:
     void write_subs_panels(FILE*, FILE*, int, int, e_unit);

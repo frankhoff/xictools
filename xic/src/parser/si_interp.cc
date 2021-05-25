@@ -630,7 +630,7 @@ SIinterp::Clear()
     }
     SIparse()->clearVariables();
     SIparse()->clearGlobals();
-    memset(&siMain, 0, sizeof(SIfunc));
+    siMain = SIfunc();
     if (!siContext || !siContext->next())
         // context shared with called scripts, only clear at top level
         Cleanup();
@@ -1185,7 +1185,7 @@ void
 SIinterp::push_cx()
 {
     siContext = new sCx(siContext);
-    memset(&siMain, 0, sizeof(SIfunc));
+    siMain = SIfunc();
     siLineCount = 0;
     siExecLine = -1;
     siLevel = 0;
@@ -1202,7 +1202,7 @@ SIinterp::pop_cx()
 {
     Clear();
     siMain = *siContext->sfunc();
-    memset(siContext->sfunc(), 0, sizeof(SIfunc));
+    *siContext->sfunc() = SIfunc();
     siLineCount = siContext->line_cnt();
     siExecLine = siContext->ex_line();
     siLevel = siContext->level();
@@ -1958,10 +1958,10 @@ SIinterp::gettokval(const char **line)
     }
     if (!token_tab)
         tt_init();
-    long val = (long)SymTab::get(token_tab, tok);
+    int val = (intptr_t)SymTab::get(token_tab, tok);
     delete [] tok;
-    if (val != (long)ST_NIL)
-        return ((int)val);
+    if (val != (int)(intptr_t)ST_NIL)
+        return (val);
     *line = oline;
     return (CO_STATEMENT);
 }

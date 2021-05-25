@@ -73,15 +73,16 @@
 #endif
 
 #define VL_REVISION \
-"vl-" VL_VERSION " Verilog Parser-Simulator, Whiteley Research Inc. (C) 2001."
+"vl-" VL_VERSION " Verilog Parser-Simulator, Whiteley Research Inc. (C) 2020."
 
 
 //---------------------------------------------------------------------------
 //  Exports
 //---------------------------------------------------------------------------
 
-void
-vl_error(const char *fmt, ...)
+namespace vl {
+
+void vl_error(const char *fmt, ...)
 {
     fflush(stdout);
     va_list args;
@@ -94,8 +95,7 @@ vl_error(const char *fmt, ...)
 }
 
 
-void
-vl_warn(const char *fmt, ...)
+void vl_warn(const char *fmt, ...)
 {
     fflush(stdout);
     va_list args;
@@ -110,8 +110,7 @@ vl_warn(const char *fmt, ...)
 
 // Return the date. Return value is static data.
 //
-const char *
-vl_datestring()
+const char *vl_datestring()
 {
     time_t tloc;
     time(&tloc);
@@ -126,31 +125,16 @@ vl_datestring()
 }
 
 
-const char *
-vl_version()
+const char * vl_version()
 {
     return (VL_REVISION);
 }
 
 
-// Global string copy function
-//
-char *
-vl_strdup(const char *str)
-{
-    if (!str)
-        return (0);
-    char *retval = new char[strlen(str) + 1];
-    strcpy(retval, str);
-    return (retval);
-}
-
-
 // Strip quotes, substitute for escapes in string.  Returns a copy of
-// the string
+// the string.
 //
-char *
-vl_fix_str(const char *str)
+char *vl_fix_str(const char *str)
 {
     if (!str)
         str = "(nil)";
@@ -186,6 +170,20 @@ vl_fix_str(const char *str)
 }
 
 
+// Global string copy function.
+//
+char *vl_strdup(const char *str)
+{
+    if (!str)
+        return (0);
+    char *retval = new char[strlen(str) + 1];
+    strcpy(retval, str);
+    return (retval);
+}
+
+} // namespace vl
+
+
 //---------------------------------------------------------------------------
 //  Local
 //---------------------------------------------------------------------------
@@ -214,82 +212,120 @@ vl_print_items(ostream &outs, lsList<T> *exprs)
 }
 
 
-static int IndentLevel;
-static bool IndentSkip;
+namespace {
+    int IndentLevel;
+    bool IndentSkip;
 
-static void Indent(ostream &outs)
-{
-    if (!IndentSkip) {
-        for (int i = 0; i < 4*IndentLevel; i++)
-            outs << ' ';
-    }
-    else
-        IndentSkip = false;
-}
-
-
-static char hexc[] = {
-    '0', '1', '2', '3', '4', '5', '6', '7',
-    '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'
-};
-
-static void
-printbits(ostream &outs, char *bits, int width, DSPtype dtype = DSPh)
-{
-    if (width == 1)
-        dtype = DSPb;
-    char buf[256], tb[4];
-    int num = 0;
-    char cfmt;
-    if (dtype == DSPb) {
-        // binary format;
-        cfmt = 'b';
-        int i = 0;
-        while (i < width) {
-            if (bits[i] == BitZ)
-                buf[num++] = 'z';
-            else if (bits[i] == BitDC)
-                buf[num++] = 'x';
-            else if (bits[i] == BitH)
-                buf[num++] = '1';
-            else if (bits[i] == BitL)
-                buf[num++] = '0';
-            i++;
+    void Indent(ostream &outs)
+    {
+        if (!IndentSkip) {
+            for (int i = 0; i < 4*IndentLevel; i++)
+                outs << ' ';
         }
+        else
+            IndentSkip = false;
     }
-    else if (dtype == DSPh || dtype == DSPall) {
-        // hex format;
-        cfmt = 'h';
-        int i = 0;
-        while (i < width) {
-            int j;
-            for (j = 0; j < 4; j++, i++)
-                if (i < width)
-                    tb[j] = bits[i];
-                else
-                    tb[j] = BitL;
-            if (tb[0] == BitZ || tb[1] == BitZ ||
-                    tb[2] == BitZ || tb[3] == BitZ) {
-                if (tb[0] != tb[1] || tb[1] != tb[2] || tb[2] != tb[3]) {
-                    printbits(outs, bits, width, DSPb);
-                    return;
-                }
-                else
+
+
+    char hexc[] = {
+        '0', '1', '2', '3', '4', '5', '6', '7',
+        '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'
+    };
+
+    void printbits(ostream &outs, char *bits, int width, DSPtype dtype = DSPh)
+    {
+        if (width == 1)
+            dtype = DSPb;
+        char buf[256], tb[4];
+        int num = 0;
+        char cfmt;
+        if (dtype == DSPb) {
+            // binary format;
+            cfmt = 'b';
+            int i = 0;
+            while (i < width) {
+                if (bits[i] == BitZ)
                     buf[num++] = 'z';
-            }
-            else if (tb[0] == BitDC || tb[1] == BitDC ||
-                    tb[2] == BitDC || tb[3] == BitDC) {
-                if (tb[0] != tb[1] || tb[1] != tb[2] || tb[2] != tb[3]) {
-                    printbits(outs, bits, width, DSPb);
-                    return;
-                }
-                else
+                else if (bits[i] == BitDC)
                     buf[num++] = 'x';
+                else if (bits[i] == BitH)
+                    buf[num++] = '1';
+                else if (bits[i] == BitL)
+                    buf[num++] = '0';
+                i++;
             }
-            else {
+        }
+        else if (dtype == DSPh || dtype == DSPall) {
+            // hex format;
+            cfmt = 'h';
+            int i = 0;
+            while (i < width) {
+                int j;
+                for (j = 0; j < 4; j++, i++)
+                    if (i < width)
+                        tb[j] = bits[i];
+                    else
+                        tb[j] = BitL;
+                if (tb[0] == BitZ || tb[1] == BitZ ||
+                        tb[2] == BitZ || tb[3] == BitZ) {
+                    if (tb[0] != tb[1] || tb[1] != tb[2] || tb[2] != tb[3]) {
+                        printbits(outs, bits, width, DSPb);
+                        return;
+                    }
+                    else
+                        buf[num++] = 'z';
+                }
+                else if (tb[0] == BitDC || tb[1] == BitDC ||
+                        tb[2] == BitDC || tb[3] == BitDC) {
+                    if (tb[0] != tb[1] || tb[1] != tb[2] || tb[2] != tb[3]) {
+                        printbits(outs, bits, width, DSPb);
+                        return;
+                    }
+                    else
+                        buf[num++] = 'x';
+                }
+                else {
+                    int x = 0;
+                    unsigned mask = 1;
+                    for (j = 0; j < 4; j++) {
+                        if (tb[j] == BitH)
+                            x |= mask;
+                        mask <<= 1;
+                    }
+                    buf[num++] = hexc[x];
+                }
+            }
+        }
+        else if (dtype == DSPo) {
+            // octal format
+            cfmt = 'o';
+            int i = 0;
+            while (i < width) {
+                int j;
+                for (j = 0; j < 3; j++, i++)
+                    if (i < width)
+                        tb[j] = bits[i];
+                    else
+                        tb[j] = BitL;
+                if (tb[0] == BitZ || tb[1] == BitZ || tb[2] == BitZ) {
+                    if (tb[0] != tb[1] || tb[1] != tb[2]) {
+                        printbits(outs, bits, width, DSPb);
+                        return;
+                    }
+                    else
+                        buf[num++] = 'z';
+                }
+                else if (tb[0] == BitDC || tb[1] == BitDC || tb[2] == BitDC) {
+                    if (tb[0] != tb[1] || tb[1] != tb[2]) {
+                        printbits(outs, bits, width, DSPb);
+                        return;
+                    }
+                    else
+                        buf[num++] = 'x';
+                }
                 int x = 0;
                 unsigned mask = 1;
-                for (j = 0; j < 4; j++) {
+                for (j = 0; j < 3; j++) {
                     if (tb[j] == BitH)
                         x |= mask;
                     mask <<= 1;
@@ -297,49 +333,12 @@ printbits(ostream &outs, char *bits, int width, DSPtype dtype = DSPh)
                 buf[num++] = hexc[x];
             }
         }
+        else
+            return;
+        outs << (int)width << '\'' << cfmt;
+        while (num--)
+            outs << buf[num];
     }
-    else if (dtype == DSPo) {
-        // octal format
-        cfmt = 'o';
-        int i = 0;
-        while (i < width) {
-            int j;
-            for (j = 0; j < 3; j++, i++)
-                if (i < width)
-                    tb[j] = bits[i];
-                else
-                    tb[j] = BitL;
-            if (tb[0] == BitZ || tb[1] == BitZ || tb[2] == BitZ) {
-                if (tb[0] != tb[1] || tb[1] != tb[2]) {
-                    printbits(outs, bits, width, DSPb);
-                    return;
-                }
-                else
-                    buf[num++] = 'z';
-            }
-            else if (tb[0] == BitDC || tb[1] == BitDC || tb[2] == BitDC) {
-                if (tb[0] != tb[1] || tb[1] != tb[2]) {
-                    printbits(outs, bits, width, DSPb);
-                    return;
-                }
-                else
-                    buf[num++] = 'x';
-            }
-            int x = 0;
-            unsigned mask = 1;
-            for (j = 0; j < 3; j++) {
-                if (tb[j] == BitH)
-                    x |= mask;
-                mask <<= 1;
-            }
-            buf[num++] = hexc[x];
-        }
-    }
-    else
-        return;
-    outs << (int)width << '\'' << cfmt;
-    while (num--)
-        outs << buf[num];
 }
 
 
@@ -359,81 +358,148 @@ operator<<(ostream &outs, vl_var *s)
 
 
 void
+vl_strength::print()
+{
+    cout << '(';
+    switch (str0()) {
+    case STRnone:
+        cout << "s0";
+        break;
+    case STRhiZ:
+        cout << "z0";
+        break;
+    case STRsmall:
+        cout << "s";
+        break;
+    case STRmed:
+        cout << "m";
+        break;
+    case STRweak:
+        cout << "w0";
+        break;
+    case STRlarge:
+        cout << "l";
+        break;
+    case STRpull:
+        cout << "p0";
+        break;
+    case STRstrong:
+        cout << "s0";
+        break;
+    case STRsupply:
+        cout << "sp0";
+        break;
+    }
+    switch (str1()) {
+    case STRnone:
+        cout << ",s1";
+        break;
+    case STRhiZ:
+        cout << ",z1";
+        break;
+    case STRsmall:
+        cout << "s";
+        break;
+    case STRmed:
+        cout << "m";
+        break;
+    case STRweak:
+        cout << ",w1";
+        break;
+    case STRlarge:
+        cout << "l";
+        break;
+    case STRpull:
+        cout << ",p1";
+        break;
+    case STRstrong:
+        cout << ",s1";
+        break;
+    case STRsupply:
+        cout << ",sp1";
+        break;
+    }
+    cout << ')';
+}
+// End of vl_strength functions.
+
+
+void
 vl_var::print(ostream &outs)
 {
-    if (name)
-        outs << name;
-    else if (data_type == Dconcat)
-        outs << '{' << u.c << '}';        
+    if (v_name)
+        outs << v_name;
+    else if (data_type() == Dconcat)
+        outs << '{' << data_c() << '}';        
     else
         outs << '?';
-    if (range)
-        outs << range;
+    if (v_range)
+        outs << v_range;
 }
 
 
 void
 vl_var::print_value(ostream &outs, DSPtype dtype)
 {
-    if (data_type == Dbit) {
-        if (array.size) {
-            char **ss = (char**)u.d;
-            for (int i = 0; i < array.size; i++) {
+    if (data_type() == Dbit) {
+        if (v_array.size()) {
+            char **ss = data_ps();
+            for (int i = 0; i < v_array.size(); i++) {
                 if (i)
                     outs << ' ';
-                printbits(outs, ss[i], bits.size, dtype);
+                printbits(outs, ss[i], v_bits.size(), dtype);
             }
         }
         else
-            printbits(outs, u.s, bits.size, dtype);
+            printbits(outs, data_s(), v_bits.size(), dtype);
     }
-    else if (data_type == Dint) {
-        if (array.size) {
-            int *ii = (int*)u.d;
+    else if (data_type() == Dint) {
+        if (v_array.size()) {
+            int *ii = data_pi();
             outs << ii[0];
-            for (int i = 1; i < array.size; i++)
+            for (int i = 1; i < v_array.size(); i++)
                 outs << ' ' << ii[i];
         }
         else
-            outs << u.i;
+            outs << data_i();
     }
-    else if (data_type == Dreal) {
-        if (array.size) {
-            double *dd = (double*)u.d;
+    else if (data_type() == Dreal) {
+        if (v_array.size()) {
+            double *dd = data_pr();
             outs << dd[0];
-            for (int i = 1; i < array.size; i++)
+            for (int i = 1; i < v_array.size(); i++)
                 outs << ' ' << dd[i];
         }
         else
-            outs << u.r;
+            outs << data_r();
     }
-    else if (data_type == Dstring) {
-        if (array.size) {
-            char **ss = (char**)u.d;
+    else if (data_type() == Dstring) {
+        if (v_array.size()) {
+            char **ss = data_ps();
             char *s = vl_fix_str(ss[0]);
             outs << s;
             delete [] s;
-            for (int i = 1; i < array.size; i++) {
+            for (int i = 1; i < v_array.size(); i++) {
                 s = vl_fix_str(ss[i]);
                 outs << ' ' << s;
                 delete [] s;
             }
         }
         else {
-            char *s = vl_fix_str(u.s);
-            outs << u.s;
+            char *s = vl_fix_str(data_s());
+            outs << data_s();
             delete [] s;
         }
     }
-    else if (data_type == Dtime) {
-        if (array.size) {
-            vl_time_t *tt = (vl_time_t*)u.d;
+    else if (data_type() == Dtime) {
+        if (v_array.size()) {
+            vl_time_t *tt = data_pt();
             outs << tt[0];
-            for (int i = 1; i < array.size; i++)
+            for (int i = 1; i < v_array.size(); i++)
                 outs << ' ' << tt[i];
         }
         else
-            outs << u.t;
+            outs << data_t();
     }
     else
         outs << "bad data type\n";
@@ -443,15 +509,15 @@ vl_var::print_value(ostream &outs, DSPtype dtype)
 const char *
 vl_var::decl_type()
 {
-    switch (net_type) {
+    switch (v_net_type) {
     case REGnone:
-        if (data_type == Dint)
+        if (data_type() == Dint)
             return ("integer");
-        else if (data_type == Dtime)
+        else if (data_type() == Dtime)
             return ("time");
-        else if (data_type == Dreal)
+        else if (data_type() == Dreal)
             return ("real");
-        else if (data_type == Dstring)
+        else if (data_type() == Dstring)
             return ("string");
         return ("unknown");
     case REGparam:
@@ -487,33 +553,33 @@ vl_var::decl_type()
 }
 
 
-// Return print field width for columns
+// Return print field width for columns.
 //
 int
 vl_var::pwidth(char fmt)
 {
-    if (data_type == Dbit) {
+    if (data_type() == Dbit) {
         switch (fmt) {
         case 'b':
-            return (bits.size);
+            return (v_bits.size());
         case 'h':
-            return (bits.size/4 + bits.size%4);
+            return (v_bits.size()/4 + v_bits.size()%4);
         case 'o':
-            return (bits.size/3 + bits.size%3);
+            return (v_bits.size()/3 + v_bits.size()%3);
         case 'd': 
-            return ((int)ceil(bits.size*log10(2.0)));
+            return ((int)ceil(v_bits.size()*log10(2.0)));
         }
     }
-    else if (data_type == Dint)
+    else if (data_type() == Dint)
         return ((int)ceil(8*sizeof(int)*log10(2.0)));
-    else if (data_type == Dtime)
+    else if (data_type() == Dtime)
         return ((int)ceil(8*sizeof(vl_time_t)*log10(2.0)));
-    else if (data_type == Dreal)
+    else if (data_type() == Dreal)
         return (12);
-    else if (data_type == Dstring) {
-        if (!u.s)
+    else if (data_type() == Dstring) {
+        if (!data_s())
             return (8);
-        return (8*(strlen(u.s)/8) + 8);
+        return (8*(strlen(data_s())/8) + 8);
     }
     return (1);
 }
@@ -522,26 +588,26 @@ vl_var::pwidth(char fmt)
 char *
 vl_var::bitstr()
 {
-    if (data_type == Dbit) {
-        if (!array.size) {
-            char *s = new char[bits.size + 1];
-            for (int i = bits.size-1, j = 0; i >= 0; i--, j++) {
-                if (u.s[i] == BitL)
+    if (data_type() == Dbit) {
+        if (!v_array.size()) {
+            char *s = new char[v_bits.size() + 1];
+            for (int i = v_bits.size()-1, j = 0; i >= 0; i--, j++) {
+                if (data_s()[i] == BitL)
                     s[j] = '0';
-                else if (u.s[i] == BitH)
+                else if (data_s()[i] == BitH)
                     s[j] = '1';
-                else if (u.s[i] == BitZ)
+                else if (data_s()[i] == BitZ)
                     s[j] = 'z';
                 else
                     s[j] = 'x';
             }
-            s[bits.size] = 0;
+            s[v_bits.size()] = 0;
             return (s);
         }
     }
-    else if (data_type == Dint) {
-        if (!array.size) {
-            unsigned x = (unsigned)u.i;
+    else if (data_type() == Dint) {
+        if (!v_array.size()) {
+            unsigned x = (unsigned)data_i();
             int isz = 8*(int)sizeof(int);
             char *s = new char[isz + 1];
             for (int i = 0; i < isz; i++) {
@@ -555,9 +621,9 @@ vl_var::bitstr()
             return (s);
         }
     }
-    else if (data_type == Dtime) {
-        if (!array.size) {
-            vl_time_t x = u.t;
+    else if (data_type() == Dtime) {
+        if (!v_array.size()) {
+            vl_time_t x = data_t();
             int isz = 8*(int)sizeof(vl_time_t);
             char *s = new char[isz + 1];
             for (int i = 0; i < isz; i++) {
@@ -573,6 +639,7 @@ vl_var::bitstr()
     }
     return (0);
 }
+// End of vl_var functions.
 
 
 ostream &
@@ -587,56 +654,56 @@ operator<<(ostream &outs, vl_expr *s)
 void
 vl_expr::print(ostream &outs)
 {
-    switch (etype) {
+    switch (e_type) {
     case BitExpr:
         print_value(outs);
         break;
     case IntExpr:
-        outs << u.i;
+        outs << data_i();
         break;
     case RealExpr:
-        outs << u.r;
+        outs << data_r();
         break;
     case IDExpr:
-        if (ux.ide.name)
-            outs << ux.ide.name;
+        if (e_data.ide.name)
+            outs << e_data.ide.name;
         break;
     case BitSelExpr:
     case PartSelExpr:
-        if (ux.ide.name)
-            outs << ux.ide.name;
-        if (ux.ide.range)
-            outs << ux.ide.range;
+        if (e_data.ide.name)
+            outs << e_data.ide.name;
+        if (e_data.ide.range)
+            outs << e_data.ide.range;
         break;
     case ConcatExpr: {
-        if (ux.mcat.var && ux.mcat.var->u.c) {
-            if (ux.mcat.rep)
-                outs << "{" << ux.mcat.rep << "{" <<
-                    ux.mcat.var->u.c << "}}";
+        if (e_data.mcat.var && e_data.mcat.var->data_c()) {
+            if (e_data.mcat.rep)
+                outs << "{" << e_data.mcat.rep << "{" <<
+                    e_data.mcat.var->data_c() << "}}";
             else
-                outs << "{" << ux.mcat.var->u.c << "}";
+                outs << "{" << e_data.mcat.var->data_c() << "}";
         }
         break;                        
     }
     case MinTypMaxExpr: {
-        if (ux.exprs.e1) {
-            outs << ux.exprs.e1;
-            if (ux.exprs.e2)
-                outs << ":" << ux.exprs.e2;
-            if (ux.exprs.e3)
-                outs << ":" << ux.exprs.e3;
+        if (e_data.exprs.e1) {
+            outs << e_data.exprs.e1;
+            if (e_data.exprs.e2)
+                outs << ":" << e_data.exprs.e2;
+            if (e_data.exprs.e3)
+                outs << ":" << e_data.exprs.e3;
         }
         break;                        
     }
     case StringExpr:
-        if (u.s)
-            outs << u.s;
+        if (data_s())
+            outs << data_s();
         break;
     case FuncExpr:
-        if (ux.func_call.name) {
-            outs << ux.func_call.name;
-            if (ux.func_call.args)
-                outs << "(" << ux.func_call.args << ")";
+        if (e_data.func_call.name) {
+            outs << e_data.func_call.name;
+            if (e_data.func_call.args)
+                outs << "(" << e_data.func_call.args << ")";
         }
         break;
     case UplusExpr:
@@ -649,8 +716,8 @@ vl_expr::print(ostream &outs)
     case UnorExpr:
     case UxorExpr:
     case UxnorExpr:
-        if (ux.exprs.e1)
-            outs << symbol() << ux.exprs.e1;
+        if (e_data.exprs.e1)
+            outs << symbol() << e_data.exprs.e1;
         break;
     
     case BplusExpr:
@@ -674,16 +741,18 @@ vl_expr::print(ostream &outs)
     case BxnorExpr:
     case BlshiftExpr:
     case BrshiftExpr:
-        if (ux.exprs.e1 && ux.exprs.e2)
-            outs << ux.exprs.e1 << ' ' << symbol() << ' ' << ux.exprs.e2;
+        if (e_data.exprs.e1 && e_data.exprs.e2) {
+            outs << e_data.exprs.e1 << ' ' << symbol() << ' ' <<
+                e_data.exprs.e2;
+        }
         break;
     case TcondExpr:
-        if (ux.exprs.e1 && ux.exprs.e2 && ux.exprs.e3)
-            outs << ux.exprs.e1 << " ? " << ux.exprs.e2 << " : "
-                << ux.exprs.e3;
+        if (e_data.exprs.e1 && e_data.exprs.e2 && e_data.exprs.e3)
+            outs << e_data.exprs.e1 << " ? " << e_data.exprs.e2 << " : "
+                << e_data.exprs.e3;
         break;
     case SysExpr:
-        outs << ux.systask;
+        outs << e_data.systask;
         break;
     }
 }
@@ -692,7 +761,7 @@ vl_expr::print(ostream &outs)
 const char *
 vl_expr::symbol()
 {
-    switch (etype) {
+    switch (e_type) {
     case IDExpr:
     case BitSelExpr:
     case PartSelExpr:
@@ -735,7 +804,7 @@ vl_expr::symbol()
     case BrshiftExpr:   return(">>");        
     case TcondExpr:     return("?");        
     default:
-        VP.error(ERR_INTERNAL, "Unexpected expression type");
+        VP()->error(ERR_INTERNAL, "Unexpected expression type");
         break;
     }
     return (0);
@@ -745,10 +814,10 @@ vl_expr::symbol()
 ostream &
 operator<<(ostream &outs, vl_strength s)
 {
-    if (s.str0 == STRnone)
+    if (s.str0() == STRnone)
         return (outs);
     outs << '(';
-    switch (s.str0) {
+    switch (s.str0()) {
     case STRsupply:
         outs << "supply0";
         break;
@@ -777,7 +846,7 @@ operator<<(ostream &outs, vl_strength s)
         break;
     }
 
-    switch (s.str1) {
+    switch (s.str1()) {
     case STRsupply:
         outs << ", supply1)";
         break;
@@ -803,10 +872,10 @@ operator<<(ostream &outs, vl_strength s)
 ostream &
 operator<<(ostream &outs, vl_range *r)
 {
-    if (r->left) {
-        outs << "[" << r->left;
-        if (r->right)
-            outs << ":" << r->right;
+    if (r->left()) {
+        outs << "[" << r->left();
+        if (r->right())
+            outs << ":" << r->right();
         outs << "]";
     }
     return (outs);
@@ -816,14 +885,14 @@ operator<<(ostream &outs, vl_range *r)
 ostream &
 operator<<(ostream &outs, vl_delay *d)
 {
-    if (d->list) {
-        if (d->list->length() > 1)
-            outs << "#(" << d->list << ") ";
+    if (d->list()) {
+        if (d->list()->length() > 1)
+            outs << "#(" << d->list() << ") ";
         else
-            outs << "#" << d->list << " ";
+            outs << "#" << d->list() << " ";
     }
     else
-        outs << "#" << d->delay1 << " ";
+        outs << "#" << d->delay1() << " ";
     return (outs);
 }
 
@@ -832,7 +901,7 @@ ostream &
 operator<<(ostream &outs, vl_event_expr *e)
 {
     bool nop = false;
-    switch (e->type) {
+    switch (e->type()) {
     case NegedgeEventExpr:
         outs << "(negedge ";
         break;
@@ -840,7 +909,7 @@ operator<<(ostream &outs, vl_event_expr *e)
         outs << "(posedge ";
         break;
     case EdgeEventExpr:
-        if (e->expr && e->expr->etype != IDExpr)
+        if (e->expr() && e->expr()->etype() != IDExpr)
             outs << "(";
         else
             nop = true;
@@ -849,14 +918,14 @@ operator<<(ostream &outs, vl_event_expr *e)
         outs << "(";
         break;
     default:
-        VP.error(ERR_INTERNAL, "Unexpected EventExpr Type");        
+        VP()->error(ERR_INTERNAL, "Unexpected EventExpr Type");        
         break;
     }
-    if (e->expr)
-        outs << e->expr;
-    else if (e->list) {
+    if (e->expr())
+        outs << e->expr();
+    else if (e->list()) {
         vl_event_expr *ex;
-        lsGen<vl_event_expr*> gen(e->list);
+        lsGen<vl_event_expr*> gen(e->list());
         if (gen.next(&ex)) {
             outs << ex;
             while(gen.next(&ex)) {
@@ -878,8 +947,8 @@ operator<<(ostream &outs, vl_event_expr *e)
 void
 vl_parser::print(ostream &outs)
 {
-    if (description)
-        outs << description;
+    if (p_description)
+        outs << p_description;
 }
 
 
@@ -890,50 +959,51 @@ vl_parser::print(ostream &outs)
 bool
 vl_simulator::monitor_change(lsList<vl_expr*> *args)
 {
-    if (first_point)
+    if (s_first_point)
         return (true);
-    if (stop)
+    if (s_stop)
         return (false);
     vl_expr *e;
     lsGen<vl_expr*> gen(args);
     // see if anything has changed
     while (gen.next(&e)) {
-        if (e->etype == StringExpr)
+        if (e->etype() == StringExpr)
             continue;
-        if (e->etype == SysExpr)
+        if (e->etype() == SysExpr)
             continue;
         vl_var od = *e;
         vl_var &nd = e->eval();
-        if (od.data_type != nd.data_type)
+        if (od.data_type() != nd.data_type())
             continue;
         vl_var &z = case_neq(od, nd);
-        if (z.u.s[0] == BitH)
+        if (z.data_s()[0] == BitH)
             return (true);
     }
     return (false);
 }
 
 
-inline void
-wformat(ostream &outs, const char *str, char fill, int wid)
-{
-    if (wid <= 0) {
+namespace {
+    inline void wformat(ostream &outs, const char *str, char fill, int wid)
+    {
+        if (wid <= 0) {
+            outs << str;
+            return;
+        }
+        int w = strlen(str);
+        if (w <= wid) {
+            int i = wid - w;
+            while (i--)
+                outs << fill;
+        }
         outs << str;
-        return;
     }
-    int w = strlen(str);
-    if (w <= wid) {
-        int i = wid - w;
-        while (i--)
-            outs << fill;
-    }
-    outs << str;
 }
 
 
 void
 vl_simulator::display_print(lsList<vl_expr*> *args, ostream &outs,
-    DSPtype dtype, unsigned short flags)
+    DSPtype dtype, unsigned int flags)
 {
     bool first = true;
     vl_expr *e;
@@ -944,15 +1014,15 @@ vl_simulator::display_print(lsList<vl_expr*> *args, ostream &outs,
             outs << ' ';
         first = false;
         hadnl = false;
-        if (e->etype == StringExpr) {
-            char *string = e->u.s;
+        if (e->etype() == StringExpr) {
+            const char *string = e->data_s();
             if (!string)
                 continue;
-            string = vl_fix_str(string);
-            char *s = string + strlen(string) - 1;
+            char *tstr = vl_fix_str(string);
+            string = tstr;
+            const char *s = string + strlen(string) - 1;
             if (*s == '\n')
                 hadnl = true;
-            char *tstr = string;
             while (*string) {
                 char buf[256];
                 if (*string != '%') {
@@ -960,7 +1030,7 @@ vl_simulator::display_print(lsList<vl_expr*> *args, ostream &outs,
                     string++;
                     continue;
                 }
-                char *xxstr = string;
+                const char *xxstr = string;
                 int fw = 0;  // field width
                 while (isdigit(*(string+1))) {
                     fw = 10*fw + (*(string+1) - '0');
@@ -988,7 +1058,7 @@ vl_simulator::display_print(lsList<vl_expr*> *args, ostream &outs,
                     gen.next(&e);
                     {
                         vl_var &d = e->eval();
-                        if (d.data_type == Dbit) {
+                        if (d.data_type() == Dbit) {
                             if (d.is_x()) {
                                 strcpy(buf, "x");
                                 fw = 0;
@@ -1026,8 +1096,8 @@ vl_simulator::display_print(lsList<vl_expr*> *args, ostream &outs,
                     gen.next(&e);
                     {
                         vl_var &d = e->eval();
-                        if (d.data_type == Dbit) {
-                            int w = (d.bits.size + 3)/4;
+                        if (d.data_type() == Dbit) {
+                            int w = (d.bits().size() + 3)/4;
                             if (d.is_x()) {
                                 int i = 0;
                                 for ( ; i < w; i++)
@@ -1046,7 +1116,7 @@ vl_simulator::display_print(lsList<vl_expr*> *args, ostream &outs,
                 case 'm':
                 case 'M':
                     {
-                        char *ss = context->hiername();
+                        char *ss = s_context->hiername();
                         if (ss) {
                             outs << ss;
                             delete [] ss;
@@ -1058,9 +1128,9 @@ vl_simulator::display_print(lsList<vl_expr*> *args, ostream &outs,
                     gen.next(&e);
                     {
                         vl_var &d = e->eval();
-                        if (d.data_type == Dbit) {
-                            int w = (d.bits.size + 2)/3;
-                            if (d.data_type == Dbit && d.is_x()) {
+                        if (d.data_type() == Dbit) {
+                            int w = (d.bits().size() + 2)/3;
+                            if (d.data_type() == Dbit && d.is_x()) {
                                 int i = 0;
                                 for ( ; i < w; i++)
                                     buf[i] =  'x';
@@ -1091,17 +1161,17 @@ vl_simulator::display_print(lsList<vl_expr*> *args, ostream &outs,
                     gen.next(&e);
                     {
                         vl_var &d = e->eval();
-                        if (d.data_type == Dbit && d.is_x())
+                        if (d.data_type() == Dbit && d.is_x())
                             strcpy(buf, "x");
                         else {
                             double t = (double) d;
-                            t *= (description->tstep/pow(10.0, tfunit));
-                            if (tfsuffix && *tfsuffix)
-                                sprintf(buf, "%.*f%s", tfprec, t, tfsuffix);
+                            t *= (s_description->tstep()/pow(10.0, s_tfunit));
+                            if (s_tfsuffix && *s_tfsuffix)
+                                sprintf(buf, "%.*f%s", s_tfprec, t, s_tfsuffix);
                             else
-                                sprintf(buf, "%.*f", tfprec, t);
+                                sprintf(buf, "%.*f", s_tfprec, t);
                         }
-                        wformat(outs, buf, ' ', tfwidth);
+                        wformat(outs, buf, ' ', s_tfwidth);
                     }
                     break;
                 case 'v':
@@ -1133,7 +1203,7 @@ vl_simulator::display_print(lsList<vl_expr*> *args, ostream &outs,
 
 void
 vl_simulator::fdisplay_print(lsList<vl_expr*> *args, DSPtype dtype,
-    unsigned short flags)
+    unsigned int flags)
 {
     if (!args)
         return;
@@ -1145,8 +1215,8 @@ vl_simulator::fdisplay_print(lsList<vl_expr*> *args, DSPtype dtype,
     lsList<vl_expr*> pargs = *args;
     pargs.next();
     for (int i = 0; i < 32; i++) {
-        if ((fh & 1) && channels[i])
-            display_print(&pargs, *channels[i], dtype, flags);
+        if ((fh & 1) && s_channels[i])
+            display_print(&pargs, *s_channels[i], dtype, flags);
         fh >>= 1;
     }
     pargs.clear();
@@ -1158,36 +1228,36 @@ vl_context::print(ostream &outs)
 {
     vl_context *cx = this;
     while (cx) {
-        if (cx->module) {
-            if (cx->module->instance)
-                outs << (cx->module->instance->name ?
-                    cx->module->instance->name : "_mod");
+        if (cx->c_module) {
+            if (cx->c_module->instance())
+                outs << (cx->c_module->instance()->name() ?
+                    cx->c_module->instance()->name() : "_mod");
             else
-                outs << cx->module->name;
+                outs << cx->c_module->name();
         }
-        else if (cx->primitive) {
-            outs << (cx->primitive->name ?
-                cx->primitive->name : "_prim");
+        else if (cx->c_primitive) {
+            outs << (cx->c_primitive->name() ?
+                cx->c_primitive->name() : "_prim");
         }
-        else if (cx->task) {
-            outs << (cx->task->name ?
-                cx->task->name : "_task");
+        else if (cx->c_task) {
+            outs << (cx->c_task->name() ?
+                cx->c_task->name() : "_task");
         }
-        else if (cx->function) {
-            outs << (cx->function->name ?
-                cx->function->name : "_func");
+        else if (cx->c_function) {
+            outs << (cx->c_function->name() ?
+                cx->c_function->name() : "_func");
         }
-        else if (cx->block) {
-            outs << (cx->block->name ?
-                cx->block->name : "_block");
+        else if (cx->c_block) {
+            outs << (cx->c_block->name() ?
+                cx->c_block->name() : "_block");
         }
-        else if (cx->fjblk) {
-            outs << (cx->fjblk->name ?
-                cx->fjblk->name : "_fjblk");
+        else if (cx->c_fjblk) {
+            outs << (cx->c_fjblk->name() ?
+                cx->c_fjblk->name() : "_fjblk");
         }
         else
             outs << "blank";
-        cx = cx->parent;
+        cx = cx->c_parent;
         if (cx)
             outs << ".";
     }
@@ -1200,20 +1270,20 @@ char *
 vl_context::hiername()
 {
     char *string = 0;
-    for (vl_context *cx = this; cx; cx = cx->parent) {
+    for (vl_context *cx = this; cx; cx = cx->c_parent) {
         const char *nm;
-        if (cx->module) {
-            if (cx->module->instance)
-                nm = cx->module->instance->name;
+        if (cx->c_module) {
+            if (cx->c_module->instance())
+                nm = cx->c_module->instance()->name();
             else
-                nm = cx->module->name;
+                nm = cx->c_module->name();
         }
-        else if (cx->primitive)
-            nm = cx->primitive->name;
-        else if (cx->task)
-            nm = cx->task->name;
-        else if (cx->function)
-            nm = cx->function->name;
+        else if (cx->c_primitive)
+            nm = cx->c_primitive->name();
+        else if (cx->c_task)
+            nm = cx->c_task->name();
+        else if (cx->c_function)
+            nm = cx->c_function->name();
         else
             nm = 0;
         if (nm) {
@@ -1246,11 +1316,11 @@ ostream &
 operator<<(ostream &outs, vl_desc *d)
 {
     vl_module *mod;
-    lsGen<vl_module*> mgen(d->modules);
+    lsGen<vl_module*> mgen(d->modules());
     while (mgen.next(&mod))
         outs << mod;
     vl_primitive *prim;
-    lsGen<vl_primitive*> pgen(d->primitives);
+    lsGen<vl_primitive*> pgen(d->primitives());
     while (pgen.next(&prim))
         outs << prim;
     return (outs);
@@ -1262,14 +1332,14 @@ operator<<(ostream &outs, vl_module *m)
 {
     outs << "module ";
     IndentLevel = 0;
-    if (m->name)
-        outs << m->name;
+    if (m->name())
+        outs << m->name();
     outs << " (";
-    if (m->ports)
-        outs << m->ports;
+    if (m->ports())
+        outs << m->ports();
     outs << ");\n";
-    if (m->mod_items)
-        vl_print_items(outs, m->mod_items);
+    if (m->mod_items())
+        vl_print_items(outs, m->mod_items());
     outs << "endmodule\n\n";
     return (outs);
 }
@@ -1280,26 +1350,26 @@ operator<<(ostream &outs, vl_primitive *p)
 {
     outs << "primitive ";
     IndentLevel = 0;
-    if (p->name)
-        outs << p->name;
+    if (p->name())
+        outs << p->name();
     outs << " (";
-    if (p->ports)
-        outs << p->ports;
+    if (p->ports())
+        outs << p->ports();
     outs << ");\n";
-    if (p->decls)
-        vl_print_items(outs, p->decls);
-    if (p->initial) {
+    if (p->decls())
+        vl_print_items(outs, p->decls());
+    if (p->initial()) {
         outs << "initial\n";
         IndentLevel++;
-        outs << p->initial << ";\n";
+        outs << p->initial() << ";\n";
         IndentLevel--;
     }
-    if (p->ptable) {
+    if (p->ptable()) {
         outs << "table\n";
         IndentLevel++;
-        int os = p->type == SeqPrimDecl ? 2 : 1;
-        unsigned char *row = p->ptable;
-        for (int i = 0; i < p->rows; i++) {
+        int os = p->type() == SeqPrimDecl ? 2 : 1;
+        unsigned char *row = p->ptable();
+        for (int i = 0; i < p->rows(); i++) {
             unsigned char *col = row + os;
             Indent(outs);
             for (int j = 0; j < MAXPRIMLEN - os; j++) {
@@ -1307,7 +1377,7 @@ operator<<(ostream &outs, vl_primitive *p)
                     break;
                 outs << p->symbol(col[j]) << ' ';
             }
-            if (p->type == SeqPrimDecl) 
+            if (p->type() == SeqPrimDecl) 
                 outs << ": " << p->symbol(row[1]) << ' ';
             
             outs << ": " << p->symbol(row[0]) << ";\n";
@@ -1353,7 +1423,7 @@ vl_primitive::symbol(unsigned char sym)
     default:
         char msg[MAXSTRLEN];
         sprintf(msg, "Unexpected primitive symbol type %d", sym);
-        VP.error(ERR_INTERNAL, msg);
+        VP()->error(ERR_INTERNAL, msg);
         break;
     }
     return (0);
@@ -1363,15 +1433,15 @@ vl_primitive::symbol(unsigned char sym)
 ostream &
 operator<<(ostream &outs, vl_port *p)
 {
-    if (p->type == NamedPort && p->name)
-        outs << "." << p->name << "(";
-    if (p->port_exp) {
-        if (p->port_exp->length() == 1)
-            outs << p->port_exp;
+    if (p->type() == NamedPort && p->name())
+        outs << "." << p->name() << "(";
+    if (p->port_exp()) {
+        if (p->port_exp()->length() == 1)
+            outs << p->port_exp();
         else
-            outs << '{' << p->port_exp << '}';
+            outs << '{' << p->port_exp() << '}';
     }
-    if (p->type == NamedPort && p->name)
+    if (p->type() == NamedPort && p->name())
         outs << ")";
     return (outs);
 }
@@ -1380,11 +1450,11 @@ operator<<(ostream &outs, vl_port *p)
 ostream &
 operator<<(ostream &outs, vl_port_connect *pc)
 {
-    if (pc->type == NamedConnect && pc->name)
-        outs << "." << pc->name << "(";
-    if (pc->expr)
-        outs << pc->expr;
-    if (pc->type == NamedConnect && pc->name)
+    if (pc->type() == NamedConnect && pc->name())
+        outs << "." << pc->name() << "(";
+    if (pc->expr())
+        outs << pc->expr();
+    if (pc->type() == NamedConnect && pc->name())
         outs << ")";
     return (outs);
 }
@@ -1407,24 +1477,24 @@ operator<<(ostream &outs, vl_decl *n)
 {
     Indent(outs);
     outs << n->decl_type();
-    if (n->strength.str0 != STRnone) {
-        if (n->type == WireDecl ||
-                n->type == TriDecl ||
-                n->type == WandDecl ||
-                n->type == TriandDecl ||
-                n->type == WorDecl ||
-                n->type == TriorDecl ||
-                n->type == TriregDecl)
-            outs << ' ' << n->strength;
+    if (n->strength().str0() != STRnone) {
+        if (n->type() == WireDecl ||
+                n->type() == TriDecl ||
+                n->type() == WandDecl ||
+                n->type() == TriandDecl ||
+                n->type() == WorDecl ||
+                n->type() == TriorDecl ||
+                n->type() == TriregDecl)
+            outs << ' ' << n->strength();
     }
-    if (n->range)
-        outs << ' ' << n->range;
-    if (n->delay)
-        outs << ' ' << n->delay;
-    if (n->list)
-        outs << ' ' << n->list;
+    if (n->range())
+        outs << ' ' << n->range();
+    if (n->delay())
+        outs << ' ' << n->delay();
+    if (n->list())
+        outs << ' ' << n->list();
     else
-        outs << ' ' << n->ids;
+        outs << ' ' << n->ids();
     return (outs);
 }
 
@@ -1439,7 +1509,7 @@ vl_decl::print(ostream &outs)
 const char *
 vl_decl::decl_type()
 {
-    switch (type) {
+    switch (st_type) {
     case RealDecl:
         return ("real");
     case EventDecl:
@@ -1490,7 +1560,7 @@ vl_decl::decl_type()
 ostream &
 operator<<(ostream &outs, vl_procstmt *p)
 {
-    switch (p->type) {
+    switch (p->type()) {
     case AlwaysStmt:
         outs << "always\n";  
         break;
@@ -1498,12 +1568,12 @@ operator<<(ostream &outs, vl_procstmt *p)
         outs << "initial\n"; 
         break;
     default:
-        VP.error(ERR_INTERNAL, "Unexpected Process Statement Type");
+        VP()->error(ERR_INTERNAL, "Unexpected Process Statement Type");
         break;
     }
     IndentLevel++;
-    if (p->stmt)
-        outs << p->stmt << p->stmt->lterm();
+    if (p->stmt())
+        outs << p->stmt() << p->stmt()->lterm();
     IndentLevel--;
     return (outs);
 }
@@ -1520,12 +1590,12 @@ ostream &
 operator<<(ostream &outs, vl_cont_assign *a)
 {
     outs << "assign ";
-    if (a->strength.str0 != STRnone)
-        outs << a->strength << ' ';
-    if (a->delay)
-        outs << a->delay << ' ';
-    if (a->assigns)
-        outs << a->assigns;
+    if (a->strength().str0() != STRnone)
+        outs << a->strength() << ' ';
+    if (a->delay())
+        outs << a->delay() << ' ';
+    if (a->assigns())
+        outs << a->assigns();
     return (outs);
 }
 
@@ -1541,8 +1611,8 @@ ostream &
 operator<<(ostream &outs, vl_specify_block *s)
 {
     outs << "specify\n";
-    if (s->items)
-        vl_print_items(outs, s->items);
+    if (s->items())
+        vl_print_items(outs, s->items());
     outs << "endspecify\n";
     return (outs);
 }
@@ -1555,97 +1625,97 @@ vl_specify_block::print(ostream &outs)
 }
 
 
-static const char *
-pathstr(int p, bool all)
-{
-    if (p == 0) {
+namespace {
+    const char *pathstr(int p, bool all)
+    {
+        if (p == 0) {
+            if (all)
+                return (" *> ");
+            return (" => ");
+        }
+        if (p == '+') {
+            if (all)
+                return (" +*> ");
+            return (" +=> ");
+        }
+        if (p == '-') {
+            if (all)
+                return (" -*> ");
+            return (" -=> ");
+        }
         if (all)
-            return (" *> ");
-        return (" => ");
+            return (" ?*> ");
+        return (" ?=> ");
     }
-    if (p == '+') {
-        if (all)
-            return (" +*> ");
-        return (" +=> ");
-    }
-    if (p == '-') {
-        if (all)
-            return (" -*> ");
-        return (" -=> ");
-    }
-    if (all)
-        return (" ?*> ");
-    return (" ?=> ");
-}
 
 
-static const char *
-cndstr(int p)
-{
-    if (p == 0)
-        return (" : ");
-    if (p == '+')
-        return (" +: ");
-    if (p == '-')
-        return (" -: ");
-    return (" ?: ");
+    const char *cndstr(int p)
+    {
+        if (p == 0)
+            return (" : ");
+        if (p == '+')
+            return (" +: ");
+        if (p == '-')
+            return (" -: ");
+        return (" ?: ");
+    }
 }
 
 
 ostream &
 operator<<(ostream &outs, vl_specify_item *s)
 {
-    if (s->type == SpecParamDecl) {
-        if (s->params)
-            outs << "specparam " << s->params;
+    if (s->type() == SpecParamDecl) {
+        if (s->params())
+            outs << "specparam " << s->params();
     }
-    else if (s->type == SpecPathDecl) {
-        if (s->lhs && s->rhs)
-            outs << s->lhs << " = " << s->rhs;
+    else if (s->type() == SpecPathDecl) {
+        if (s->lhs() && s->rhs())
+            outs << s->lhs() << " = " << s->rhs();
     }
-    else if (s->type == SpecLSPathDecl1) {
-        if (s->expr && s->list1 && s->list2 && s->rhs) {
-            outs << "if (" << s->expr << ") (";
-            outs << s->list1 << pathstr(s->pol, false) << s->list2;
-            outs << ") = " << s->rhs;
+    else if (s->type() == SpecLSPathDecl1) {
+        if (s->expr() && s->list1() && s->list2() && s->rhs()) {
+            outs << "if (" << s->expr() << ") (";
+            outs << s->list1() << pathstr(s->pol(), false) << s->list2();
+            outs << ") = " << s->rhs();
         }
     }
-    else if (s->type == SpecLSPathDecl2) {
-        if (s->expr && s->list1 && s->list2 && s->rhs) {
-            outs << "if (" << s->expr << ") (";
-            outs << s->list1 << pathstr(s->pol, true) << s->list2;
-            outs << ") = " << s->rhs;
+    else if (s->type() == SpecLSPathDecl2) {
+        if (s->expr() && s->list1() && s->list2() && s->rhs()) {
+            outs << "if (" << s->expr() << ") (";
+            outs << s->list1() << pathstr(s->pol(), true) << s->list2();
+            outs << ") = " << s->rhs();
         }
     }
-    else if (s->type == SpecESPathDecl1) {
-        if (s->list1 && s->list2 && s->expr && s->rhs) {
-            if (s->ifex)
-                outs << "if (" << s->ifex << ") ";
-            if (s->edge_id == PosedgeEventExpr)
+    else if (s->type() == SpecESPathDecl1) {
+        if (s->list1() && s->list2() && s->expr() && s->rhs()) {
+            if (s->ifex())
+                outs << "if (" << s->ifex() << ") ";
+            if (s->edge_id() == PosedgeEventExpr)
                 outs << "(posedge ";
-            else if (s->edge_id == NegedgeEventExpr)
+            else if (s->edge_id() == NegedgeEventExpr)
                 outs << "(negedge ";
             else
                 outs << '(';
-            outs << s->list1 << " => (" << s->list2 << cndstr(s->pol);
-            outs << s->expr << ")) = " << s->rhs;
+            outs << s->list1() << " => (" << s->list2() << cndstr(s->pol());
+            outs << s->expr() << ")) = " << s->rhs();
         }
     }
-    else if (s->type == SpecESPathDecl2) {
-        if (s->list1 && s->list2 && s->expr && s->rhs) {
-            if (s->ifex)
-                outs << "if (" << s->ifex << ") ";
-            if (s->edge_id == PosedgeEventExpr)
+    else if (s->type() == SpecESPathDecl2) {
+        if (s->list1() && s->list2() && s->expr() && s->rhs()) {
+            if (s->ifex())
+                outs << "if (" << s->ifex() << ") ";
+            if (s->edge_id() == PosedgeEventExpr)
                 outs << "(posedge ";
-            else if (s->edge_id == NegedgeEventExpr)
+            else if (s->edge_id() == NegedgeEventExpr)
                 outs << "(negedge ";
             else
                 outs << '(';
-            outs << s->list1 << " => (" << s->list2 << cndstr(s->pol);
-            outs << s->expr << ")) = " << s->rhs;
+            outs << s->list1() << " => (" << s->list2() << cndstr(s->pol());
+            outs << s->expr() << ")) = " << s->rhs();
         }
     }
-    else if (s->type == SpecTiming)
+    else if (s->type() == SpecTiming)
         outs << "// $setup()";
     return (outs);
 }
@@ -1661,18 +1731,18 @@ vl_specify_item::print(ostream &outs)
 ostream &
 operator<<(ostream &outs, vl_spec_term_desc *s)
 {
-    if (s->pol == 0) {
-        if (s->name && s->exp1 && s->exp2)
-            outs << s->name << '[' << s->exp1 << " : " << s->exp2 << ']';
-        else if (s->name && s->exp1)
-            outs << s->name << '[' << s->exp1 << ']';
-        else if (s->name)
-            outs << s->name;
+    if (s->pol() == 0) {
+        if (s->name() && s->exp1() && s->exp2())
+            outs << s->name() << '[' << s->exp1() << " : " << s->exp2() << ']';
+        else if (s->name() && s->exp1())
+            outs << s->name() << '[' << s->exp1() << ']';
+        else if (s->name())
+            outs << s->name();
     }
-    else if (s->pol == '+' && s->exp1)
-        outs << "+ " << s->exp1;
-    else if (s->pol == '-' && s->exp1)
-        outs << "- " << s->exp1;
+    else if (s->pol() == '+' && s->exp1())
+        outs << "+ " << s->exp1();
+    else if (s->pol() == '-' && s->exp1())
+        outs << "- " << s->exp1();
     return (outs);
 }
 
@@ -1687,11 +1757,11 @@ vl_spec_term_desc::print(ostream &outs)
 ostream &
 operator<<(ostream &outs, vl_path_desc *s)
 {
-    if (s->list1 && s->list2) {
-        if (s->type == PathLeadTo)
-            outs << '(' << s->list1 << " => " << s->list2 << ')';
-        else if (s->type == PathAll)
-            outs << '(' << s->list1 << " *> " << s->list2 << ')';
+    if (s->list1() && s->list2()) {
+        if (s->type() == PathLeadTo)
+            outs << '(' << s->list1() << " => " << s->list2() << ')';
+        else if (s->type() == PathAll)
+            outs << '(' << s->list1() << " *> " << s->list2() << ')';
     }
     return (outs);
 }
@@ -1709,14 +1779,14 @@ operator<<(ostream &outs, vl_task *t)
 {
     Indent(outs);
     outs << "task ";
-    if (t->name)
-        outs << t->name;
+    if (t->name())
+        outs << t->name();
     outs << ";\n";
     IndentLevel++;
-    if (t->decls)
-        vl_print_items(outs, t->decls);
-    if (t->stmts)
-        vl_print_items(outs, t->stmts);
+    if (t->decls())
+        vl_print_items(outs, t->decls());
+    if (t->stmts())
+        vl_print_items(outs, t->stmts());
     IndentLevel--;
     Indent(outs);
     outs << "endtask";
@@ -1736,7 +1806,7 @@ operator<<(ostream &outs, vl_function *f)
 {
     Indent(outs);
     outs << "function ";
-    switch (f->type) {
+    switch (f->type()) {
     case IntFuncDecl:
         outs << "integer ";
         break;
@@ -1744,20 +1814,20 @@ operator<<(ostream &outs, vl_function *f)
          outs << "real ";
          break;
     case RangeFuncDecl:
-        outs << f->range << ' ';
+        outs << f->range() << ' ';
         break;
     default:
-        VP.error(ERR_INTERNAL, "Unexpected Function Type");
+        VP()->error(ERR_INTERNAL, "Unexpected Function Type");
     }
-    if (f->name)
-        outs << f->name;
+    if (f->name())
+        outs << f->name();
     outs << ";\n";
 
     IndentLevel++;
-    if (f->decls)
-        vl_print_items(outs, f->decls);
-    if (f->stmts)
-        vl_print_items(outs, f->stmts);
+    if (f->decls())
+        vl_print_items(outs, f->decls());
+    if (f->stmts())
+        vl_print_items(outs, f->stmts());
     IndentLevel--;
     Indent(outs);
     outs << "endfunction";
@@ -1776,7 +1846,7 @@ ostream &
 operator<<(ostream &outs, vl_gate_inst_list *l)
 {
     Indent(outs);
-    switch (l->type) {
+    switch (l->type()) {
     case AndGate:
         outs << "and";
         break;
@@ -1856,16 +1926,16 @@ operator<<(ostream &outs, vl_gate_inst_list *l)
         outs << "rtranif1";
         break;
     default:
-        VP.error(ERR_INTERNAL, "Unexpected Gate Type");
+        VP()->error(ERR_INTERNAL, "Unexpected Gate Type");
         break;
     }
     outs << ' ';
-    if (l->strength.str0 != STRnone)
-        outs << l->strength << ' ';;
-    if (l->delays)
-        outs << l->delays;
-    if (l->gates)
-        outs << l->gates;
+    if (l->strength().str0() != STRnone)
+        outs << l->strength() << ' ';;
+    if (l->delays())
+        outs << l->delays();
+    if (l->gates())
+        outs << l->gates();
     return (outs);
 }
 
@@ -1881,14 +1951,14 @@ ostream &
 operator<<(ostream &outs, vl_mp_inst_list *m)
 {
     Indent(outs);
-    if (m->name)
-        outs << m->name << ' ';
-    if (m->strength.str0 != STRnone)
-        outs << m->strength << ' ';
-    if (m->params_or_delays)
-        outs << m->params_or_delays << ' ';
-    if (m->mps)
-        outs << m->mps;
+    if (m->name())
+        outs << m->name() << ' ';
+    if (m->strength().str0() != STRnone)
+        outs << m->strength() << ' ';
+    if (m->prms_or_dlys())
+        outs << m->prms_or_dlys() << ' ';
+    if (m->mps())
+        outs << m->mps();
     return (outs);
 }
 
@@ -1908,14 +1978,14 @@ ostream &
 operator<<(ostream &outs, vl_bassign_stmt *b)
 {
     Indent(outs);
-    if (b->type == AssignStmt)
+    if (b->type() == AssignStmt)
         outs << "assign ";
-    else if (b->type == ForceStmt)
+    else if (b->type() == ForceStmt)
         outs << "force ";
-    if (b->lhs)
-        outs << b->lhs;
+    if (b->lhs())
+        outs << b->lhs();
 
-    switch (b->type) {
+    switch (b->type()) {
     case AssignStmt:
     case ForceStmt:
     case BassignStmt:
@@ -1937,16 +2007,16 @@ operator<<(ostream &outs, vl_bassign_stmt *b)
         outs << " <= @";        
         break;
     default:
-        VP.error(ERR_INTERNAL, "Unexpected Assign Type");
+        VP()->error(ERR_INTERNAL, "Unexpected Assign Type");
         break;
     }
-    if (b->event)
-        outs << b->event << " ";
-    else if (b->delay)
-        outs << ' ' << b->delay;
+    if (b->event())
+        outs << b->event() << " ";
+    else if (b->delay())
+        outs << ' ' << b->delay();
     int tmp = IndentLevel;
     IndentLevel = 0;
-    outs << b->rhs;
+    outs << b->rhs();
     IndentLevel = tmp;
     return (outs);
 }
@@ -1963,12 +2033,12 @@ ostream &
 operator<<(ostream &outs, vl_sys_task_stmt *s)
 {
     Indent(outs);
-    if (s->name)
-        outs << s->name;
+    if (s->name())
+        outs << s->name();
     int tmp = IndentLevel;
     IndentLevel = 0;
-    if (s->args)
-        outs << " (" << s->args << ')';        
+    if (s->args())
+        outs << " (" << s->args() << ')';        
     IndentLevel = tmp;
     return (outs);
 }
@@ -1986,15 +2056,15 @@ operator<<(ostream &outs, vl_begin_end_stmt *b)
 {
     Indent(outs);
     outs << "begin";
-    if (b->name)
-        outs << ": " << b->name << '\n';
+    if (b->name())
+        outs << ": " << b->name() << '\n';
     else
         outs << '\n';
     IndentLevel++;
-    if (b->decls)
-        vl_print_items(outs, b->decls);
-    if (b->stmts)
-        vl_print_items(outs, b->stmts);
+    if (b->decls())
+        vl_print_items(outs, b->decls());
+    if (b->stmts())
+        vl_print_items(outs, b->stmts());
     IndentLevel--;
     Indent(outs);
     outs << "end";
@@ -2014,19 +2084,19 @@ operator<<(ostream &outs, vl_if_else_stmt *i)
 {
     Indent(outs);
     outs << "if (";
-    if (i->cond)
-        outs << i->cond;
+    if (i->cond())
+        outs << i->cond();
     outs << ")\n";
-    if (i->if_stmt) {
+    if (i->if_stmt()) {
         IndentLevel++;
-        outs << i->if_stmt << i->if_stmt->lterm();
+        outs << i->if_stmt() << i->if_stmt()->lterm();
         IndentLevel--;
     }
-    if (i->else_stmt) {
+    if (i->else_stmt()) {
         Indent(outs);
         outs << "else\n";
         IndentLevel++;
-        outs << i->else_stmt << i->else_stmt->lterm();
+        outs << i->else_stmt() << i->else_stmt()->lterm();
         IndentLevel--;
     }
     return (outs);
@@ -2044,7 +2114,7 @@ ostream &
 operator<<(ostream &outs, vl_case_stmt *c)
 {
     Indent(outs);
-    switch (c->type) {
+    switch (c->type()) {
     case CaseStmt:
         outs << "case (";
         break;
@@ -2055,13 +2125,13 @@ operator<<(ostream &outs, vl_case_stmt *c)
         outs << "casez (";
         break;
     default:
-        VP.error(ERR_INTERNAL, "Unexpected Case Type");
+        VP()->error(ERR_INTERNAL, "Unexpected Case Type");
         break;
     }
-    if (c->cond)
-        outs << c->cond;
+    if (c->cond())
+        outs << c->cond();
     outs << ")\n";
-    lsGen<vl_case_item*> gen(c->case_items);
+    lsGen<vl_case_item*> gen(c->case_items());
     vl_case_item *item;
     while (gen.next(&item))
         outs << item;
@@ -2082,21 +2152,21 @@ ostream &
 operator<<(ostream &outs, vl_case_item *c)
 {
     Indent(outs);
-    switch (c->type) {
+    switch (c->type()) {
     case CaseItem:
-        if (c->exprs)
-            outs << c->exprs << ": ";
+        if (c->exprs())
+            outs << c->exprs() << ": ";
         break;
     case DefaultItem:
         outs << "default: ";
         break;
     default:
-        VP.error(ERR_INTERNAL, "Unexpected CaseItem Type");
+        VP()->error(ERR_INTERNAL, "Unexpected CaseItem Type");
         break;
     }
     IndentSkip = true;
-    if (c->stmt)
-        outs << c->stmt << c->stmt->lterm();
+    if (c->stmt())
+        outs << c->stmt() << c->stmt()->lterm();
     else
         outs << " ;\n";
     return (outs);
@@ -2116,8 +2186,8 @@ operator<<(ostream &outs, vl_forever_stmt *f)
     Indent(outs);
     outs << "forever\n";
     IndentLevel++;
-    if (f->stmt)
-        outs << f->stmt << f->stmt->lterm();
+    if (f->stmt())
+        outs << f->stmt() << f->stmt()->lterm();
     IndentLevel--;
     return (outs);
 }
@@ -2135,12 +2205,12 @@ operator<<(ostream &outs, vl_repeat_stmt *r)
 {
     Indent(outs);
     outs << "repeat (";
-    if (r->count)
-        outs << r->count;
+    if (r->count())
+        outs << r->count();
     outs << ")\n";
     IndentLevel++;
-    if (r->stmt)
-        outs << r->stmt << r->stmt->lterm();
+    if (r->stmt())
+        outs << r->stmt() << r->stmt()->lterm();
     IndentLevel--;
     return (outs);
 }
@@ -2158,12 +2228,12 @@ operator<<(ostream &outs, vl_while_stmt *w)
 {
     Indent(outs);
     outs << "while (";
-    if (w->cond)
-        outs << w->cond;
+    if (w->cond())
+        outs << w->cond();
     outs << ")\n";
     IndentLevel++;
-    if (w->stmt)
-        outs << w->stmt << w->stmt->lterm();
+    if (w->stmt())
+        outs << w->stmt() << w->stmt()->lterm();
     IndentLevel--;
     return (outs);
 }
@@ -2182,20 +2252,20 @@ operator<<(ostream &outs, vl_for_stmt *f)
     Indent(outs);
     outs << "for (";
     IndentSkip = true;
-    if (f->initial)
-        outs << f->initial;
+    if (f->initial())
+        outs << f->initial();
     outs << "; ";
-    if (f->cond)
-        outs << f->cond;
+    if (f->cond())
+        outs << f->cond();
     outs << "; ";
     IndentSkip = true;
-    if (f->end)
-        outs << f->end;
+    if (f->end())
+        outs << f->end();
     IndentSkip = false;
     outs << ")\n";
     IndentLevel++;
-    if (f->stmt)
-        outs << f->stmt << f->stmt->lterm();
+    if (f->stmt())
+        outs << f->stmt() << f->stmt()->lterm();
     IndentLevel--;
     return (outs);
 }
@@ -2212,11 +2282,11 @@ ostream &
 operator<<(ostream &outs, vl_delay_control_stmt *c)
 {
     Indent(outs);
-    if (c->delay)
-        outs << c->delay;
-    if (c->stmt) {
+    if (c->delay())
+        outs << c->delay();
+    if (c->stmt()) {
         IndentSkip = true;
-        outs << c->stmt << c->stmt->lterm();
+        outs << c->stmt() << c->stmt()->lterm();
     }
     else
         outs << ";\n";
@@ -2236,10 +2306,10 @@ operator<<(ostream &outs, vl_event_control_stmt *c)
 {
     Indent(outs);
     outs << "@";
-    if (c->event)
-        outs << c->event << '\n';
-    if (c->stmt)
-        outs << c->stmt << c->stmt->lterm();
+    if (c->event())
+        outs << c->event() << '\n';
+    if (c->stmt())
+        outs << c->stmt() << c->stmt()->lterm();
     return (outs);
 }
 
@@ -2256,12 +2326,12 @@ operator<<(ostream &outs, vl_wait_stmt *w)
 {
     Indent(outs);
     outs << "wait (";
-    if (w->cond)
-        outs << w->cond;
+    if (w->cond())
+        outs << w->cond();
     outs << ")\n";
     IndentLevel++;
-    if (w->stmt)
-        outs << w->stmt << w->stmt->lterm();
+    if (w->stmt())
+        outs << w->stmt() << w->stmt()->lterm();
     IndentLevel--;
     return (outs);
 }
@@ -2277,9 +2347,9 @@ vl_wait_stmt::print(ostream &outs)
 ostream &
 operator<<(ostream &outs, vl_send_event_stmt *s)
 {
-    if (s->name) {
+    if (s->name()) {
         Indent(outs);
-        outs << "->" << s->name;
+        outs << "->" << s->name();
     }
     return (outs);
 }
@@ -2297,15 +2367,15 @@ operator<<(ostream &outs, vl_fork_join_stmt *f)
 {
     Indent(outs);
     outs << "fork";
-    if (f->name)
-        outs << ": " << f->name << '\n';
+    if (f->name())
+        outs << ": " << f->name() << '\n';
     else
         outs << '\n';
     IndentLevel++;
-    if (f->decls)
-        vl_print_items(outs, f->decls);
-    if (f->stmts)
-        vl_print_items(outs, f->stmts);
+    if (f->decls())
+        vl_print_items(outs, f->decls());
+    if (f->stmts())
+        vl_print_items(outs, f->stmts());
     IndentLevel--;
     Indent(outs);
     outs << "join";
@@ -2341,10 +2411,10 @@ ostream &
 operator<<(ostream &outs, vl_task_enable_stmt *t)
 {
     Indent(outs);
-    if (t->name)
-        outs << t->name;
-    if (t->args)
-        outs << "(" << t->args << ")";
+    if (t->name())
+        outs << t->name();
+    if (t->args())
+        outs << "(" << t->args() << ")";
     return (outs);
 }
 
@@ -2359,9 +2429,9 @@ vl_task_enable_stmt::print(ostream &outs)
 ostream &
 operator<<(ostream &outs, vl_disable_stmt *d)
 {
-    if (d->name) {
+    if (d->name()) {
         Indent(outs);
-        outs << "disable " << d->name;
+        outs << "disable " << d->name();
     }
     return (outs);
 }
@@ -2377,12 +2447,12 @@ vl_disable_stmt::print(ostream &outs)
 ostream &
 operator<<(ostream &outs, vl_deassign_stmt *d)
 {
-    if (d->lhs) {
+    if (d->lhs()) {
         Indent(outs);
-        if (d->type == DeassignStmt)
-            outs << "deassign " << d->lhs;
-        else if (d->type == ReleaseStmt)
-            outs << "release " << d->lhs;
+        if (d->type() == DeassignStmt)
+            outs << "deassign " << d->lhs();
+        else if (d->type() == ReleaseStmt)
+            outs << "release " << d->lhs();
     }
     return (outs);
 }
@@ -2402,13 +2472,13 @@ vl_deassign_stmt::print(ostream &outs)
 ostream &
 operator<<(ostream &outs, vl_gate_inst *g)
 {
-    if (g->name)
-        outs << g->name;
-    if (g->array)
-        outs << g->array << ' ';
+    if (g->name())
+        outs << g->name();
+    if (g->array())
+        outs << g->array() << ' ';
     outs << "(";
-    if (g->terms)
-        outs << g->terms;
+    if (g->terms())
+        outs << g->terms();
     outs << ")";
     return (outs);
 }
@@ -2417,11 +2487,12 @@ operator<<(ostream &outs, vl_gate_inst *g)
 ostream &
 operator<<(ostream &outs, vl_mp_inst *m)
 {
-    if (m->name)
-        outs << m->name;
+    if (m->name())
+        outs << m->name();
     outs << "(";
-    if (m->ports)
-        outs << m->ports;
+    if (m->ports())
+        outs << m->ports();
     outs << ")";
     return (outs);
 }
+

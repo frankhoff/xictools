@@ -43,6 +43,7 @@
 //
 
 #include "simulator.h"
+#include "spglobal.h"
 #include "runop.h"
 #include "graph.h"
 #include "output.h"
@@ -78,53 +79,71 @@ CommandTab::com_check(wordlist *wl)
 void
 CommandTab::com_mctrial(wordlist*)
 {
-    if (!Sp.CurCircuit())
+    if (!Sp.CurCircuit()) {
+        GRpkgIf()->ErrPrintf(ET_ERROR, "No current circuit.\n");
         return;
+    }
     sCHECKprms *cj = Sp.CurCircuit()->check();
-    if (!cj)
+    if (!cj) {
+        GRpkgIf()->ErrPrintf(ET_ERROR, "The check command is not running.\n");
         return;
+    }
     Sp.SetFlag(FT_MONTE, true);
     int ret;
-    cj->set_no_output(true);
     if (!cj->out_cir)
-        ret = cj->initial();
+        ret = cj->initial(true);
     else
-        ret = cj->trial(0, 0, 0.0, 0.0);
-    cj->set_no_output(false);
+        ret = cj->trial(0, 0, 0.0, 0.0, true);
     Sp.SetFlag(FT_MONTE, false);
     Sp.SetVar("trial_return", ret);
 }
 
 
 void
-CommandTab::com_findrange(wordlist*)
+CommandTab::com_findrange(wordlist *wl)
 {
-    if (!Sp.CurCircuit())
+    if (!Sp.CurCircuit()) {
+        GRpkgIf()->ErrPrintf(ET_ERROR, "No current circuit.\n");
         return;
+    }
     sCHECKprms *cj = Sp.CurCircuit()->check();
-    if (!cj)
+    if (!cj) {
+        GRpkgIf()->ErrPrintf(ET_ERROR, "The check command is not running.\n");
         return;
-    int ret = true;
+    }
+    cj->find_oprange(wl);
+}
 
-    bool mbak = cj->monte();
-    bool abak = cj->doall();
-    int s1 = cj->step1();
-    int s2 = cj->step2();
-    cj->set_monte(false);
-    cj->set_doall(false);
-    cj->set_step1(0);
-    cj->set_step2(0);
 
-    if (!cj->out_cir)
-        ret = cj->initial();
-    if (ret)
-        ret = cj->findRange();
+void
+CommandTab::com_findupper(wordlist *wl)
+{
+    if (!Sp.CurCircuit()) {
+        GRpkgIf()->ErrPrintf(ET_ERROR, "No current circuit.\n");
+        return;
+    }
+    sCHECKprms *cj = Sp.CurCircuit()->check();
+    if (!cj) {
+        GRpkgIf()->ErrPrintf(ET_ERROR, "The check command is not running.\n");
+        return;
+    }
+    cj->find_oprange(wl, false);
+}
 
-    cj->set_monte(mbak);
-    cj->set_doall(abak);
-    cj->set_step1(s1);
-    cj->set_step2(s2);
-    cj->initInput(cj->val1(), cj->val2());
+
+void
+CommandTab::com_findlower(wordlist *wl)
+{
+    if (!Sp.CurCircuit()) {
+        GRpkgIf()->ErrPrintf(ET_ERROR, "No current circuit.\n");
+        return;
+    }
+    sCHECKprms *cj = Sp.CurCircuit()->check();
+    if (!cj) {
+        GRpkgIf()->ErrPrintf(ET_ERROR, "The check command is not running.\n");
+        return;
+    }
+    cj->find_oprange(wl, true, false);
 }
 
 
@@ -172,6 +191,18 @@ CommandTab::com_echof(wordlist *wlist)
 }
 
 
+void
+CommandTab::com_printf(wordlist *wl)
+{
+    if (!Sp.CurCircuit() || !Sp.CurCircuit()->check() ||
+            !Sp.CurCircuit()->check()->outfp())
+        return;
+    TTY.ioPush(Sp.CurCircuit()->check()->outfp());
+    com_print(wl);
+    TTY.ioPop();
+}
+
+
 // This will dump the alter list to the output file, for use in Monte
 // Carlo analysis.  In this approach, the alter command, or
 // equivalently forms like "let @device[param] = trial_value" are used
@@ -187,31 +218,6 @@ CommandTab::com_alterf(wordlist*)
     Sp.CurCircuit()->printAlter(Sp.CurCircuit()->check()->outfp());
 }
 // End of CommandTab functions.
-
-
-sHtab *sCHECKprms::ch_plotnames;
-
-namespace {
-    // Hard-wired names for generated range vectors.
-    const char *OPLO1 = "opmin1";
-    const char *OPHI1 = "opmax1";
-    const char *OPLO2 = "opmin2";
-    const char *OPHI2 = "opmax2";
-    const char *OPVEC = "range";
-    const char *OPSCALE = "r_scale";
-
-    const char *checkFAIL = "checkFAIL";
-    const char *checkPNTS = "checkPNTS";
-    const char *checkINIT = "checkINIT";
-
-    // Hard-wired names for user-given input range vectors.
-    const char *checkVAL1 = "checkVAL1";
-    const char *checkSTP1 = "checkSTP1";
-    const char *checkDEL1 = "checkDEL1";
-    const char *checkVAL2 = "checkVAL2";
-    const char *checkSTP2 = "checkSTP2";
-    const char *checkDEL2 = "checkDEL2";
-}
 
 
 // The margin analysis function.
@@ -232,6 +238,10 @@ IFsimulator::MargAnalysis(wordlist *wl)
 
     const char *po, *pe;
     int err = args.parse(&wl, &po, &pe);
+    // The wl is now a copy.
+    GCarray<const char*> gc_po(po);
+    GCarray<const char*> gc_pe(pe);
+
     if (err != OK)
         return;
 
@@ -264,9 +274,6 @@ IFsimulator::MargAnalysis(wordlist *wl)
         }
         return;
     }
-
-    GCarray<const char*> gc_po(po);
-    GCarray<const char*> gc_pe(po);
 
     if (ft_curckt->runonce())
         ft_curckt->rebuild(true);
@@ -320,7 +327,11 @@ int
 sFtCirc::checkCodeblocks()
 {
     if (!controlBlk().name()) {
-        if (!controlBlk().tree()) {
+        if (!controlBlk().tree() && !Sp.ControlsDepth()) {
+            // Sp.ControlsDepth is >0 when we are executing a .control
+            // block.  In this case don't bind the .control block, as
+            // this would be recursive.
+
             if (controlBlk().text()) {
                 controlBlk().set_tree(CP.MakeControl(controlBlk().text()));
                 if (!controlBlk().tree()) {
@@ -339,7 +350,11 @@ sFtCirc::checkCodeblocks()
         }
     }
     if (!execBlk().name()) {
-        if (!execBlk().tree()) {
+        if (!execBlk().tree() && !Sp.ExecsDepth()) {
+            // Sp.ExecsDepth is >0 when we are executing a .exec
+            // block.  In this case don't bind the .exec block, as
+            // this would be recursive.
+
             if (execBlk().text()) {
                 execBlk().set_tree(CP.MakeControl(execBlk().text()));
                 if (!execBlk().tree()) {
@@ -531,6 +546,51 @@ checkargs::parse(wordlist **pwl, const char **pe, const char **po)
 // End of checkargs functions.
 
 
+// Hard-wired names for generated range vectors.
+const char *kwc_opmin1 = "opmin1";
+const char *kwc_opmax1 = "opmax1";
+const char *kwc_opmin2 = "opmin2";
+const char *kwc_opmax2 = "opmax2";
+const char *kwc_range = "range";
+const char *kwc_r_scale = "r_scale";
+
+// Hard-wired names for misc. range vectors.
+const char *kwc_checkFAIL = "checkFAIL";
+const char *kwc_checkPNTS = "checkPNTS";
+const char *kwc_checkINIT = "checkINIT";
+
+// Hard-wired names for user-given input range vectors.
+const char *kwc_checkVAL1 = "checkVAL1";
+const char *kwc_checkSTP1 = "checkSTP1";
+const char *kwc_checkDEL1 = "checkDEL1";
+const char *kwc_checkVAL2 = "checkVAL2";
+const char *kwc_checkSTP2 = "checkSTP2";
+const char *kwc_checkDEL2 = "checkDEL2";
+
+// Hard-wired names for generated range vectors.
+const char *sCHECKprms::OPLO1 = kwc_opmin1;
+const char *sCHECKprms::OPHI1 = kwc_opmax1;
+const char *sCHECKprms::OPLO2 = kwc_opmin2;
+const char *sCHECKprms::OPHI2 = kwc_opmax2;
+const char *sCHECKprms::OPVEC = kwc_range;
+const char *sCHECKprms::OPSCALE = kwc_r_scale;
+
+// Hard-wired names for misc. range vectors.
+const char *sCHECKprms::checkFAIL = kwc_checkFAIL;
+const char *sCHECKprms::checkPNTS = kwc_checkPNTS;
+const char *sCHECKprms::checkINIT = kwc_checkINIT;
+
+// Hard-wired names for user-given input range vectors.
+const char *sCHECKprms::checkVAL1 = kwc_checkVAL1;
+const char *sCHECKprms::checkSTP1 = kwc_checkSTP1;
+const char *sCHECKprms::checkDEL1 = kwc_checkDEL1;
+const char *sCHECKprms::checkVAL2 = kwc_checkVAL2;
+const char *sCHECKprms::checkSTP2 = kwc_checkSTP2;
+const char *sCHECKprms::checkDEL2 = kwc_checkDEL2;
+
+sHtab *sCHECKprms::ch_plotnames;
+
+
 sCHECKprms::sCHECKprms()
 {
     ch_op           = 0;
@@ -540,7 +600,6 @@ sCHECKprms::sCHECKprms()
     ch_tmpoutname   = 0;
     ch_graphid      = 0;
     ch_batchmode    = false;
-    ch_no_output    = false;
     ch_use_remote   = false;
     ch_monte        = false;
     ch_doall        = false;
@@ -600,12 +659,121 @@ sCHECKprms::~sCHECKprms()
 }
 
 
+void
+sCHECKprms::find_oprange(wordlist *wl, bool dolower, bool doupper)
+{
+    if (!Sp.CurCircuit())
+        return;
+    int ret = true;
+
+    wl = wordlist::copy(wl);
+    char *name1 = 0, *name2 = 0;
+    wordlist *wn;
+    for (wordlist *ww = wl; ww; ww = wn) {
+        wn = ww->wl_next;
+        bool f1 = false, f2 = false;
+        if (lstring::eq(ww->wl_word, "-n1"))
+            f1 = true;
+        else if (lstring::eq(ww->wl_word, "-n2"))
+            f2  = true;
+        if (f1 || f2) {
+            if (!ww->wl_prev)
+                wl = wn;
+            else
+                ww->wl_prev->wl_next = ww->wl_next;
+            if (ww->wl_next)
+                ww->wl_next->wl_prev = ww->wl_prev;
+            delete ww;
+            ww = wn;
+            if (ww) {
+                if (f1) {
+                    name1 = lstring::copy(ww->wl_word);
+                    lstring::unquote_in_place(name1);
+                }
+                else {
+                    name2 = lstring::copy(ww->wl_word);
+                    lstring::unquote_in_place(name2);
+                }
+                wn = wn->wl_next;
+                if (!ww->wl_prev)
+                    wl = wn;
+                else
+                    ww->wl_prev->wl_next = ww->wl_next;
+                if (ww->wl_next)
+                    ww->wl_next->wl_prev = ww->wl_prev;
+                delete ww;
+            }
+        }
+    }
+
+    resetup(&wl);
+    wordlist::destroy(wl);
+
+    char *lo1 = 0, *hi1 = 0, *lo2 = 0, *hi2 = 0;
+    if (name1) {
+        lo1 = new char[strlen(name1) + 5];
+        hi1 = new char[strlen(name1) + 5];
+        sprintf(lo1, "%s_min", name1);
+        sprintf(hi1, "%s_max", name1);
+        OPLO1 = lo1;
+        OPHI1 = hi1;
+    }
+    if (name2) {
+        lo2 = new char[strlen(name2) + 5];
+        hi2 = new char[strlen(name2) + 5];
+        sprintf(lo2, "%s_min", name2);
+        sprintf(hi2, "%s_max", name2);
+        OPLO2 = lo2;
+        OPHI2 = hi2;
+    }
+
+    bool mbak = monte();
+    bool abak = doall();
+    int s1 = step1();
+    int s2 = step2();
+    set_monte(false);
+    set_doall(false);
+    set_step1(0);
+    set_step2(0);
+
+    if (!out_cir)
+        ret = initial(true);
+    if (ret) {
+        set_opvec(0, 0);
+        ret = findRange(dolower, doupper);
+    }
+
+    set_monte(mbak);
+    set_doall(abak);
+    set_step1(s1);
+    set_step2(s2);
+    initInput(val1(), val2());
+    if (name1) {
+        OPLO1 = kwc_opmin1;
+        OPHI1 = kwc_opmax1;
+        delete [] name1;
+        delete [] lo1;
+        delete [] hi1;
+    }
+    if (name2) {
+        OPLO2 = kwc_opmin2;
+        OPHI2 = kwc_opmax2;
+        delete [] name2;
+        delete [] lo2;
+        delete [] hi2;
+    }
+}
+
+
 int
 sCHECKprms::setup(checkargs &args, wordlist *wl)
 {
     sFtCirc *curckt = Sp.CurCircuit();
     if (!curckt)
         return (E_NOCKT);
+
+    if (curckt->runonce())
+        curckt->rebuild(true);
 
     // Create a new plot for the analysis.
     out_plot = new sPlot("range");
@@ -661,6 +829,47 @@ sCHECKprms::setup(checkargs &args, wordlist *wl)
 
     if (!args.batchmode() && !args.monte() && !args.findedge())
         check_print();
+
+    return (OK);
+}
+
+
+// This is called from the findrange command, allows reset of the
+// sweep parameters.
+//
+int
+sCHECKprms::resetup(wordlist **pwl)
+{
+    sFtCirc *curckt = Sp.CurCircuit();
+    if (!curckt)
+        return (E_NOCKT);
+    if (!out_plot) {
+        // Plot should already exist.
+        out_plot = new sPlot("range");
+        out_plot->new_plot();
+    }
+    OP.setCurPlot(out_plot->type_name());
+
+    int err = parseRange(pwl);
+    if (err != OK) {
+        GRpkgIf()->ErrPrintf(ET_ERROR,
+            "syntax error in findrange command line.\n");
+        return (err);
+    }
+
+    // Run the exec script.
+    set_vec(checkINIT, 1.0);
+// FIXME sometimes needed sometimes not
+    curckt->execBlk().exec(false);
+    set_vec(checkINIT, 0.0);
+    set_vec(checkFAIL, 0.0);
+
+    initRange();
+    initNames();
+    initCheckPnts();
+
+    ch_fail = false;
+    ch_nogo = false;
 
     return (OK);
 }
@@ -960,8 +1169,65 @@ sCHECKprms::initNames()
 {
     delete ch_names;
     ch_names = 0;
-    if (!ch_devs1 && !ch_devs2)
+    if (!ch_devs1 && !ch_devs2) {
         ch_names = sNames::set_names();
+
+#define MAGIC_CHAR '%'
+        // If the value1/2 variables are set to a device list/param
+        // list preceded by the MAGIC_CHAR, set the devs/prms and blow
+        // away the names.
+
+        if (ch_names->value1() && (*ch_names->value1() == MAGIC_CHAR)) {
+            const char *dstr = ch_names->value1() + 1;
+            wordlist *d1, *p1;
+            sFtCirc::parseDevParams(dstr, &d1, &p1, false);
+            if (d1 && p1) {
+                if (ch_names->value2() && (*ch_names->value2() == MAGIC_CHAR)) {
+                    dstr = ch_names->value2() + 1;
+                    wordlist *d2, *p2;
+                    sFtCirc::parseDevParams(dstr, &d2, &p2, false);
+                    if (d2 && p2) {
+                        ch_devs1 = d1;
+                        ch_prms1 = p1;
+                        ch_devs2 = d2;
+                        ch_prms2 = p2;
+                    }
+                    else {
+                        GRpkgIf()->ErrPrintf(ET_WARN,
+                            "parse failed for device,param list for value2.\n");
+                        wordlist::destroy(d1);
+                        wordlist::destroy(p1);
+                        wordlist::destroy(d2);
+                        wordlist::destroy(p2);
+                    }
+                }
+                else {
+                    if (ch_names->value2()) {
+                        // Error: both names should be dev/prm, or neither.
+                        GRpkgIf()->ErrPrintf(ET_WARN,
+                            "did not find device,param list for value2.\n");
+                        wordlist::destroy(d1);
+                        wordlist::destroy(p1);
+                    }
+                    else {
+                        ch_devs1 = d1;
+                        ch_prms1 = p1;
+                    }
+                }
+            }
+            else {
+                // Syntax error, need a dev and a prm.
+                GRpkgIf()->ErrPrintf(ET_WARN,
+                    "parse failed for device,param list for value1.\n");
+                wordlist::destroy(d1);
+                wordlist::destroy(p1);
+            }
+        }
+        if (ch_devs1) {
+            delete ch_names;
+            ch_names = 0;
+        }
+    }
 }
 
 
@@ -1002,8 +1268,12 @@ sCHECKprms::initOutMode(bool keepall, bool sgbase, bool keepplot)
             ch_segbase = lstring::copy(vv.get_string());
         out_mode = OutcCheckSeg;
     }
-    else if (keepplot || OP.hasIplot(true) || OP.hasRunop(DF_MEASURE|DF_STOP)) {
+    else if (keepplot || OP.hasIplot(true) || OP.hasIntervalMeasure()) {
         // Keep all data for curent trial.
+        // Note that for .stop and point-type .measure, we don't keep
+        // all data.  One can use the -f option if all data are
+        // needed, for example if history is used in a callback.
+
         out_mode = OutcCheckSeg;
     }
 }
@@ -1062,7 +1332,7 @@ sCHECKprms::initInput(double value1, double value2)
 // and the analysis should be halted.
 //
 bool
-sCHECKprms::initial()
+sCHECKprms::initial(bool no_output)
 {
     char buf[256];
     buf[0] = 0;
@@ -1118,12 +1388,14 @@ sCHECKprms::initial()
             }
         }
         if (ch_op) {
-            if (ch_monte)
-                sprintf(buf, "[DATA] %3d %3d run %3d",
+            if (ch_monte) {
+                sprintf(buf, "[DATA] %3d %3d trial %3d",
                     -ch_step1, -ch_step2, 1);
-            else
+            }
+            else {
                 sprintf(buf, "[DATA] %3d %3d %12g %12g", 
                     -ch_step1, -ch_step2, value1, value2);
+            }
         }
         set_opvec(-1, -1);  // clear oplo, ophi
         VTvalue vv;
@@ -1163,13 +1435,15 @@ sCHECKprms::initial()
         error = OK;
     }
     if (error == OK) {
-        if (!ch_no_output) {
+        if (!no_output) {
             if (GP.MpMark(ch_graphid, !ch_fail) && !ch_batchmode)
                 TTY.printf_force(ch_fail ? " FAIL\n\n" : " PASS\n\n");
-            if (ch_op)
+            if (ch_op) {
                 fprintf(ch_op, "%s\t\t%s\n", buf, ch_fail ? "FAIL" : "PASS");
+                out_cir->printAlter(ch_op);
+            }
+            addpoint(-ch_step1, -ch_step2, ch_fail);
         }
-        addpoint(-ch_step1, -ch_step2, ch_fail);
     }
     else {
         ch_nogo = true;
@@ -1191,7 +1465,7 @@ sCHECKprms::loop()
     if (ch_step1 == 0 && ch_step2 == 0) {
         if (ch_monte)
             return (OK);
-        return (findRange());
+        return (findRange(true, true));
     }
 
     int num1 = 2*ch_step1 + 1;
@@ -1262,10 +1536,8 @@ sCHECKprms::loop()
                         d->set_realval(j+ch_step2, value1);
                     }
                 }
-                else {
-                    if (findrange1(value1, j + ch_step2, true, false))
-                        goto quit;
-                }
+                else if (find_lower1(value1, j + ch_step2))
+                    goto quit;
             }
 
             rowflags = ch_flags + (j + ch_step2 + 1)*num1 - 1;
@@ -1287,10 +1559,8 @@ sCHECKprms::loop()
                         d->set_realval(j+ch_step2, value1);
                     }
                 }
-                else {
-                    if (findrange1(value1, j + ch_step2, false, true))
-                        goto quit;
-                }
+                else if (find_upper1(value1, j + ch_step2))
+                    goto quit;
             }
         }
     }
@@ -1322,10 +1592,8 @@ sCHECKprms::loop()
                         d->set_realval(i+ch_step1, value2);
                     }
                 }
-                else {
-                    if (findrange2(value2, i + ch_step1, true, false))
-                        goto quit;
-                }
+                else if (find_lower2(value2, i + ch_step1))
+                    goto quit;
             }
             last = j;
 
@@ -1348,10 +1616,8 @@ sCHECKprms::loop()
                         d->set_realval(i+ch_step1, value2);
                     }
                 }
-                else {
-                    if (findrange2(value2, i + ch_step1, false, true))
-                        goto quit;
-                }
+                else if (find_upper2(value2, i + ch_step1))
+                    goto quit;
             }
         }
     }
@@ -1371,7 +1637,7 @@ quit:
 // fail, 0 if error.
 //
 int
-sCHECKprms::trial(int i, int j, double value1, double value2)
+sCHECKprms::trial(int i, int j, double value1, double value2, bool no_output)
 {
     if (!out_cir || !out_plot) {
         ch_nogo = true;
@@ -1399,22 +1665,23 @@ sCHECKprms::trial(int i, int j, double value1, double value2)
             for (int k = 0; k < ch_max; k++)
                 ch_points[k] = d->realval(k);
         }
-        if (!ch_no_output) {
+        if (!no_output) {
             int num = (j + ch_step2)*(2*ch_step1 + 1) + i + ch_step1 + 1;
             if (GP.MpWhere(ch_graphid, i, j) && !ch_batchmode)
                 TTY.printf_force("%3d %3d run %3d\n", i, j, num);
             if (ch_op)
-                sprintf(buf, "[DATA] %3d %3d run %3d", i, j, num);
+                sprintf(buf, "[DATA] %3d %3d trial %3d", i, j, num);
         }
     }
     else {
         initInput(value1, value2);
-        if (!ch_no_output) {
+        if (!no_output) {
             if (GP.MpWhere(ch_graphid, i, j) && !ch_batchmode)
                 TTY.printf_force("%3d %3d %12g %12g\n", i, j, value1, value2);
-            if (ch_op)
+            if (ch_op) {
                 sprintf(buf, "[DATA] %3d %3d %12g %12g",
                     i, j, value1, value2);
+            }
         }
     }
 
@@ -1435,13 +1702,15 @@ sCHECKprms::trial(int i, int j, double value1, double value2)
     if (error < 0)
         ch_pause = true;
     else if (error == OK) {
-        if (!ch_no_output) {
+        if (!no_output) {
             if (GP.MpMark(ch_graphid, !ch_fail) && !ch_batchmode)
                 TTY.printf_force(ch_fail ? " FAIL\n\n" : " PASS\n\n");
-            if (ch_op)
+            if (ch_op) {
                 fprintf(ch_op, "%s\t\t%s\n", buf, ch_fail ? "FAIL" : "PASS");
+                out_cir->printAlter(ch_op);
+            }
+            addpoint(i, j, ch_fail);
         }
-        addpoint(i, j, ch_fail);
         return (ch_fail + 1);
     }
     else
@@ -1462,7 +1731,7 @@ sCHECKprms::evaluate()
 
     CBret ret = CBfail;
     if (out_cir && out_plot) {
-        if (!out_cir->controlBlk().tree())
+        if (!out_cir->controlBlk().tree() && !out_cir->controlBlk().name())
             return (CBok);
         sFtCirc *cir = Sp.CurCircuit();
         sPlot *plt = OP.curPlot();
@@ -1549,7 +1818,6 @@ sCHECKprms::findEdge(const char *po, const char *pc)
     }
 
     bool pass1 = true;
-    ch_no_output = true;
     int itno = ch_iterno;
     while (itno--) {
         int error;
@@ -1576,7 +1844,6 @@ sCHECKprms::findEdge(const char *po, const char *pc)
         if (error < 0) {
             // User interrupt, can't resume.
             ch_nogo = true;
-            ch_no_output = false;
             return;
         }
         else if (error != OK) {
@@ -1587,7 +1854,6 @@ sCHECKprms::findEdge(const char *po, const char *pc)
             }
             else {
                 ch_nogo = true;
-                ch_no_output = false;
                 return;
             }
         }
@@ -1604,17 +1870,16 @@ sCHECKprms::findEdge(const char *po, const char *pc)
             }
         }
     }
-    ch_no_output = false;
 }
 
 
 // Find the operating range of value1 and value2.  The initial values
 // must be nonzero, and the output vectors should exist, otherwise the
-// search is skipped.  The search is also skipped if ch_iterno
-// (the checkiterate variable) is zero.
+// search is skipped.  If checkiterate is not set, use a temporary
+// default value.
 //
 bool
-sCHECKprms::findRange()
+sCHECKprms::findRange(bool dolower, bool doupper)
 {
     if (ch_fail) {
         // center point bad
@@ -1623,16 +1888,14 @@ sCHECKprms::findRange()
         ch_nogo = true;
         return (true);
     }
-    if (ch_doall) {
-        // With the "all" flag set, find the range of each of the
-        // value vector entries that are not masked by value_mask,
-        // if value exists.
-        //
-        if (!ch_names) {
-            GRpkgIf()->ErrPrintf(ET_ERROR,
-            "find range with \"all\" flag set requires a \"values\" vector.");
-            return (true);
-        }
+    if (ch_doall && !ch_names) {
+        GRpkgIf()->ErrPrintf(ET_ERROR,
+        "find range with \"all\" flag set requires a \"values\" vector.");
+        return (true);
+    }
+
+    int chiter_bak = ch_iterno;
+    if (ch_iterno <= 0) {
         VTvalue vv;
         if (Sp.GetVar(kw_checkiterate, VTYP_NUM, &vv, out_cir))
             ch_iterno = vv.get_int();
@@ -1641,9 +1904,17 @@ sCHECKprms::findRange()
             ch_iterno = 0;
             GRpkgIf()->ErrPrintf(ET_WARN,
                 "bad value for checkiterate, ignored.\n");
-        }
-        if (ch_iterno == 0)
             return (false);
+        }
+#define DEF_CHITER 6
+        if (ch_iterno == 0)
+            ch_iterno = DEF_CHITER;
+    }
+    if (ch_doall) {
+        // With the "all" flag set, find the range of each of the
+        // value vector entries that are not masked by value_mask,
+        // if value exists.
+
         sDataVec *d = out_plot->find_vec(ch_names->value());
         if (d && d->isreal()) {
             char maskbuf[64];
@@ -1656,34 +1927,48 @@ sCHECKprms::findRange()
                 tmpd->set_realvec(new double[d->length()], true);
                 tmpd->set_length(d->length());
             }
-            else
+            else {
+                ch_iterno = chiter_bak;
                 return (true);
+            }
             tmpd = out_plot->find_vec(OPHI1);
             if (tmpd && tmpd->isreal()) {
                 tmpd->set_realvec(new double[d->length()], true);
                 tmpd->set_length(d->length());
             }
-            else
+            else {
+                ch_iterno = chiter_bak;
                 return (true);
+            }
             for (int i = 0; i < d->length(); i++) {
                 if (vm && vm->isreal() && i < vm->length() &&
-                        vm->realval(i) != 0.0)
+                        vm->realval(i) != 0.0) {
                     continue;
+                }
                 double value1 = d->realval(i);
                 set_vec(ch_names->n1(), (double)i);
-                if (findrange1(value1, i, true, true))
+                if (doupper && find_upper1(value1, i))
+                    continue;
+                if (dolower && find_lower1(value1, i))
                     continue;
             }
         }
+        ch_iterno = chiter_bak;
         return (false);
     }
-    if (ch_iterno == 0)
-        return (false);
-    if (findrange1(ch_val1, 0, true, true))
-        return (true);
-    if (findrange2(ch_val2, 0, true, true))
-        return (true);
-    return (false);
+
+    bool ret = false;
+    if (!ret && doupper && find_upper1(ch_val1, 0))
+        ret = true;
+    if (!ret && dolower && find_lower1(ch_val1, 0))
+        ret = true;
+    if (!ret && doupper && find_upper2(ch_val2, 0))
+        ret = true;
+    if (!ret && dolower && find_lower2(ch_val2, 0))
+        ret = true;
+
+    ch_iterno = chiter_bak;
+    return (ret);
 }
 
 
@@ -1884,44 +2169,48 @@ sCHECKprms::df_open(int c, char **rdname, FILE **rdfp, sNames *tnames)
     const char *filename = Sp.CurCircuit()->filename();
     if (!filename)
         filename = "<unknown>";
-    if (c == 'm')
-        fprintf(fp, "Monte Carlo Analysis from %s\n", CP.Program());
-    else
-        fprintf(fp, "Operating Range Analysis from %s\n", CP.Program());
-    fprintf(fp, "Date: %s\n", datestring());
-    fprintf(fp, "File: %s\n", filename);
-    if (!tnames) {
-        fprintf(fp, "Parameter 1: %s\n", "value1");
-        fprintf(fp, "Parameter 2: %s\n", "value2");
+    if (c == 'm') {
+        fprintf(fp, "Monte Carlo Analysis from %s-%s\n", CP.Program(),
+            Global.Version());
     }
     else {
-        // Print the substituted parameter names.
-        char param1[128], param2[128];
-        *param1 = '\0';
-        *param2 = '\0';
-        sDataVec *d = out_plot->find_vec(tnames->value());
-        if (d && d->isreal()) {
-            int len = d->length();
-            sDataVec *n1 = out_plot->find_vec(tnames->n1());
-            sDataVec *n2 = out_plot->find_vec(tnames->n2());
-            if (n2 && n2->isreal()) {
-                int ii = (int)n2->realval(0);
-                if (ii >= 0 && ii < len)
-                    sprintf(param1, "%s[%d]", tnames->value(), ii);
+        fprintf(fp, "Operating Range Analysis from %s-%s\n", CP.Program(),
+            Global.Version());
+    }
+    fprintf(fp, "Date: %s\n", datestring());
+    fprintf(fp, "File: %s\n", filename);
+    if (c != 'm') {
+        if (tnames) {
+            // Print the substituted parameter names.
+            char param1[128], param2[128];
+            *param1 = '\0';
+            *param2 = '\0';
+            sDataVec *d = out_plot->find_vec(tnames->value());
+            if (d && d->isreal()) {
+                int len = d->length();
+                sDataVec *n1 = out_plot->find_vec(tnames->n1());
+                sDataVec *n2 = out_plot->find_vec(tnames->n2());
+                if (n2 && n2->isreal()) {
+                    int ii = (int)n2->realval(0);
+                    if (ii >= 0 && ii < len)
+                        sprintf(param1, "%s[%d]", tnames->value(), ii);
+                }
+                // N1 has precedence if N1 = N2
+                if (n1 && n1->isreal()) {
+                    int ii = (int)n1->realval(0);
+                    if (ii >= 0 && ii < len)
+                        sprintf(param2, "%s[%d]", tnames->value(), ii);
+                }
             }
-            // N1 has precedence if N1 = N2
-            if (n1 && n1->isreal()) {
-                int ii = (int)n1->realval(0);
-                if (ii >= 0 && ii < len)
-                    sprintf(param2, "%s[%d]", tnames->value(), ii);
+            if (!*param1)
+                strcpy(param1, tnames->value1());
+            if (!*param2)
+                strcpy(param2, tnames->value2());
+            if (strcmp(param1, "value1") || strcmp(param2, "value2")) {
+                fprintf(fp, "Parameter 1: %s\n", param1);
+                fprintf(fp, "Parameter 2: %s\n", param2);
             }
         }
-        if (!*param1)
-            strcpy(param1, tnames->value1());
-        if (!*param2)
-            strcpy(param2, tnames->value2());
-        fprintf(fp, "Parameter 1: %s\n", param1);
-        fprintf(fp, "Parameter 2: %s\n", param2);
     }
 
     // Map the file name to the current plot name.
@@ -2054,23 +2343,27 @@ sCHECKprms::processReturn(const char *fname)
                 mcrun = true;
             }
             if (GP.MpWhere(ch_graphid, d1, d2) && !ch_batchmode) {
-                if (mcrun)
+                if (mcrun) {
                     TTY.printf_force("%3d %3d %3s %3s\t\t%s\n", d1, d2,
                         string1, string2, string3);
-                else
+                }
+                else {
                     TTY.printf_force("%3d %3d %12s %12s\t\t%s\n", d1, d2,
                         string1, string2, string3);
+                }
             }
             GP.MpMark(ch_graphid, pf);
             if (ch_op) {
-                if (mcrun)
+                if (mcrun) {
                     fprintf(ch_op,
                         "[DATA] %3d %3d %3s %3s\t\t%s\n", d1, d2, string1,
                         string2, string3);
-                else
+                }
+                else {
                     fprintf(ch_op,
                         "[DATA] %3d %3d %12s %12s\t\t%s\n", d1, d2, string1,
                         string2, string3);
+                }
             }
             char *flag = ch_flags + (d2 + ch_step2)*num1 + d1;
             *flag = 1 + (1-pf);
@@ -2114,7 +2407,8 @@ sCHECKprms::endJob()
 
     if (ch_iterno > 0 && !ch_doall)
         set_rangevec();
-    out_cir->set_check(0);
+    if (out_cir)
+        out_cir->set_check(0);
     OP.endPlot(out_rundesc, true);
 }
 
@@ -2184,6 +2478,7 @@ sCHECKprms::set_rangevec()
         scale->set_defcolor(t->defcolor());
         scale->set_gridtype(t->gridtype());
         scale->set_plottype(t->plottype());
+        scale->set_no_sxze(true);
         scale->newperm();
 
         v = new sDataVec(lstring::copy(OPVEC), t->flags(), cnt, t->units(), d);
@@ -2191,6 +2486,7 @@ sCHECKprms::set_rangevec()
         v->set_gridtype(t->gridtype());
         v->set_plottype(t->plottype());
         v->set_scale(scale);
+        v->set_no_sxze(true);
         v->newperm();
     }
     else {
@@ -2202,136 +2498,160 @@ sCHECKprms::set_rangevec()
 
 #define SPAN 10
 
-// Find the operating range of value1, using val as the starting point.
-// Results are recorded in OPLO1 and OPHI1.  Returns true if error.
+// Find the upper limit of value1, using val as the starting point.
+// Results are recorded in OPHI1.  Returns true if error.
 //
 bool
-sCHECKprms::findrange1(double val, int offset, bool dolower, bool doupper)
+sCHECKprms::find_upper1(double val, int offset)
 {
     if (offset < 0)
         return (true);
-    if (val != 0.0) {
-        sDataVec *d = out_plot->find_vec(OPHI1);
-        if (doupper && d && offset < d->length()) {
-            if (!ch_batchmode)
-                TTY.printf("Computing v1 upper limit...\n");
-            double value2 = ch_val2;
-            double value1 = val;
-            double delta = fabs(.5*value1);
-            int i;
-            for (i = 0; i < SPAN; i++) {
-                value1 += delta;
-                ch_no_output = true;
-                trial(0, 0, value1, value2);
-                ch_no_output = false;
-                if (ch_fail) {
-                    value1 -= delta;
-                    if (findext1(ch_iterno, &value1, value2, -delta))
-                        return (true);
-                    d->set_realval(offset, value1);
-                    break;
-                }
-            }
-            if (i == SPAN) {
-                GRpkgIf()->ErrPrintf(ET_WARN,
-                    "could not find upper v1 limit.\n");
-                d->set_realval(offset, 0.0);
+    if (val == 0.0)
+        return (false);
+
+    sDataVec *d = out_plot->find_vec(OPHI1);
+    if (d && offset < d->length()) {
+        if (!ch_batchmode)
+            TTY.printf("Computing v1 upper limit...\n");
+        double value2 = ch_val2;
+        double value1 = val;
+        double delta = fabs(.5*value1);
+        int i;
+        for (i = 0; i < SPAN; i++) {
+            value1 += delta;
+            trial(0, 0, value1, value2, true);
+            if (ch_fail) {
+                value1 -= delta;
+                if (findext1(ch_iterno, &value1, value2, -delta))
+                    return (true);
+                d->set_realval(offset, value1);
+                break;
             }
         }
-        d = out_plot->find_vec(OPLO1);
-        if (dolower && d && offset < d->length()) {
-            if (!ch_batchmode)
-                TTY.printf("Computing v1 lower limit...\n");
-            double value2 = ch_val2;
-            double value1 = val;
-            double delta = fabs(.5*value1);
-            int i;
-            for (i = 0; i < SPAN; i++) {
-                value1 -= delta;
-                ch_no_output = true;
-                trial(0, 0, value1, value2);
-                ch_no_output = false;
-                if (ch_fail) {
-                    value1 += delta;
-                    if (findext1(ch_iterno, &value1, value2, delta))
-                        return (true);
-                    d->set_realval(offset, value1);
-                    break;
-                }
-            }
-            if (i == SPAN) {
-                GRpkgIf()->ErrPrintf(ET_WARN,
-                    "could not find lower v1 limit.\n");
-                d->set_realval(offset, 0.0);
-            }
+        if (i == SPAN) {
+            GRpkgIf()->ErrPrintf(ET_WARN,
+                "could not find upper v1 limit.\n");
+            d->set_realval(offset, 0.0);
         }
     }
     return (false);
 }
 
 
-// Find the operating range of value2, using val as the starting point.
-// Results are recorded in OPLO2 and OPHI2.  Returns true if error.
+// Find the lower limit of value1, using val as the starting point.
+// Results are recorded in OPLO1.  Returns true if error.
 //
 bool
-sCHECKprms::findrange2(double val, int offset, bool dolower, bool doupper)
+sCHECKprms::find_lower1(double val, int offset)
 {
     if (offset < 0)
         return (true);
-    if (val != 0.0) {
-        sDataVec *d = out_plot->find_vec(OPHI2);
-        if (doupper && d && offset < d->length()) {
-            if (!ch_batchmode)
-                TTY.printf("Computing v2 upper limit...\n");
-            double value2 = val;
-            double value1 = ch_val1;
-            double delta = fabs(.5*value2);
-            int i;
-            for (i = 0; i < SPAN; i++) {
-                value2 += delta;
-                ch_no_output = true;
-                trial(0, 0, value1, value2);
-                ch_no_output = false;
-                if (ch_fail) {
-                    value2 -= delta;
-                    if (findext2(ch_iterno, value1, &value2, -delta))
-                        return (true);
-                    d->set_realval(offset, value2);
-                    break;
-                }
-            }
-            if (i == SPAN) {
-                GRpkgIf()->ErrPrintf(ET_WARN,
-                    "could not find upper v2 limit.\n");
-                d->set_realval(offset, 0.0);
+    if (val == 0.0)
+        return (false);
+
+    sDataVec *d = out_plot->find_vec(OPLO1);
+    if (d && offset < d->length()) {
+        if (!ch_batchmode)
+            TTY.printf("Computing v1 lower limit...\n");
+        double value2 = ch_val2;
+        double value1 = val;
+        double delta = fabs(.5*value1);
+        int i;
+        for (i = 0; i < SPAN; i++) {
+            value1 -= delta;
+            trial(0, 0, value1, value2, true);
+            if (ch_fail) {
+                value1 += delta;
+                if (findext1(ch_iterno, &value1, value2, delta))
+                    return (true);
+                d->set_realval(offset, value1);
+                break;
             }
         }
-        d = out_plot->find_vec(OPLO2);
-        if (dolower && d && offset < d->length()) {
-            if (!ch_batchmode)
-                TTY.printf("Computing v2 lower limit...\n");
-            double value2 = val;
-            double value1 = ch_val1;
-            double delta = fabs(.5*value2);
-            int i;
-            for (i = 0; i < SPAN; i++) {
+        if (i == SPAN) {
+            GRpkgIf()->ErrPrintf(ET_WARN,
+                "could not find lower v1 limit.\n");
+            d->set_realval(offset, 0.0);
+        }
+    }
+    return (false);
+}
+
+
+// Find the upper limit of value2, using val as the starting point. 
+// Results are recorded in OPHI2.  Returns true if error.
+//
+bool
+sCHECKprms::find_upper2(double val, int offset)
+{
+    if (offset < 0)
+        return (true);
+    if (val == 0.0)
+        return (false);
+
+    sDataVec *d = out_plot->find_vec(OPHI2);
+    if (d && offset < d->length()) {
+        if (!ch_batchmode)
+            TTY.printf("Computing v2 upper limit...\n");
+        double value2 = val;
+        double value1 = ch_val1;
+        double delta = fabs(.5*value2);
+        int i;
+        for (i = 0; i < SPAN; i++) {
+            value2 += delta;
+            trial(0, 0, value1, value2, true);
+            if (ch_fail) {
                 value2 -= delta;
-                ch_no_output = true;
-                trial(0, 0, value1, value2);
-                ch_no_output = false;
-                if (ch_fail) {
-                    value2 += delta;
-                    if (findext2(ch_iterno, value1, &value2, delta))
-                        return (true);
-                    d->set_realval(offset, value2);
-                    break;
-                }
+                if (findext2(ch_iterno, value1, &value2, -delta))
+                    return (true);
+                d->set_realval(offset, value2);
+                break;
             }
-            if (i == SPAN) {
-                GRpkgIf()->ErrPrintf(ET_WARN,
-                    "could not find lower v2 limit.\n");
-                d->set_realval(offset, 0.0);
+        }
+        if (i == SPAN) {
+            GRpkgIf()->ErrPrintf(ET_WARN,
+                "could not find upper v2 limit.\n");
+            d->set_realval(offset, 0.0);
+        }
+    }
+    return (false);
+}
+
+
+// Find the lower limit of value2, using val as the starting point. 
+// Results are recorded in OPLO2.  Returns true if error.
+//
+bool
+sCHECKprms::find_lower2(double val, int offset)
+{
+    if (offset < 0)
+        return (true);
+    if (val == 0.0)
+        return (false);
+
+    sDataVec *d = out_plot->find_vec(OPLO2);
+    if (d && offset < d->length()) {
+        if (!ch_batchmode)
+            TTY.printf("Computing v2 lower limit...\n");
+        double value2 = val;
+        double value1 = ch_val1;
+        double delta = fabs(.5*value2);
+        int i;
+        for (i = 0; i < SPAN; i++) {
+            value2 -= delta;
+            trial(0, 0, value1, value2, true);
+            if (ch_fail) {
+                value2 += delta;
+                if (findext2(ch_iterno, value1, &value2, delta))
+                    return (true);
+                d->set_realval(offset, value2);
+                break;
             }
+        }
+        if (i == SPAN) {
+            GRpkgIf()->ErrPrintf(ET_WARN,
+                "could not find lower v2 limit.\n");
+            d->set_realval(offset, 0.0);
         }
     }
     return (false);
@@ -2347,7 +2667,6 @@ sCHECKprms::findext1(int itno, double *value1, double value2, double delta)
 {
     delta *= .5;
     *value1 -= delta;
-    ch_no_output = true;
     while (itno--) {
         initInput(*value1, value2);
         out_cir->resetTrial(ch_names != 0);
@@ -2358,7 +2677,6 @@ sCHECKprms::findext1(int itno, double *value1, double value2, double delta)
         ToolBar()->SuppressUpdate(false);
         if (error < 0) {
             ch_pause = true;
-            ch_no_output = false;
             return (true);
         }
         if (error == E_ITERLIM) {
@@ -2369,7 +2687,6 @@ sCHECKprms::findext1(int itno, double *value1, double value2, double delta)
         }
         else if (error != OK) {
             ch_nogo = true;
-            ch_no_output = false;
             return (true);
         }
         delta *= .5;
@@ -2378,7 +2695,6 @@ sCHECKprms::findext1(int itno, double *value1, double value2, double delta)
         else
             *value1 += delta;
     }
-    ch_no_output = false;
     return (false);
 }
 
@@ -2392,7 +2708,6 @@ sCHECKprms::findext2(int itno, double value1, double *value2, double delta)
 {
     delta *= .5;
     *value2 -= delta;
-    ch_no_output = true;
     while (itno--) {
         initInput(value1, *value2);
         out_cir->resetTrial(ch_names != 0);
@@ -2403,7 +2718,6 @@ sCHECKprms::findext2(int itno, double value1, double *value2, double delta)
         ToolBar()->SuppressUpdate(false);
         if (error < 0) {
             ch_pause = true;
-            ch_no_output = false;
             return (true);
         }
         if (error == E_ITERLIM) {
@@ -2414,7 +2728,6 @@ sCHECKprms::findext2(int itno, double value1, double *value2, double delta)
         }
         else if (error != OK) {
             ch_nogo = true;
-            ch_no_output = false;
             return (true);
         }
         delta *= .5;
@@ -2423,7 +2736,6 @@ sCHECKprms::findext2(int itno, double value1, double *value2, double delta)
         else
             *value2 += delta;
     }
-    ch_no_output = false;
     return (false);
 }
 

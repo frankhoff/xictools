@@ -288,7 +288,8 @@ sCI::sCI(CDol *l, bool filtmode)
     else if (ww > 600)
         ww = 600;
     ww += 15;  // scrollbar
-    gtk_widget_set_usize(GTK_WIDGET(wb_textarea), ww, -1);
+    int hh = 8*GTKfont::stringHeight(wb_textarea, 0);
+    gtk_widget_set_size_request(GTK_WIDGET(wb_textarea), ww, hh);
 }
 
 
@@ -439,7 +440,7 @@ sCI::ci_btn_proc(GtkWidget*, void *client_data)
 {
     if (!CI)
         return;
-    int mode = (long)client_data;
+    int mode = (intptr_t)client_data;
     if (mode == CI_select) {
         for (ci_item *s = CI->ci_list; s->name; s++) {
             s->sel = true;

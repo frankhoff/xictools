@@ -16,7 +16,7 @@ itopok = @itopok@
 CXX = @CXX@
 CC = @CC@
 LINKCC = @LINKCC@
-CFLAGS = @CFLAGS@ @VL_DEFS@ @UFLAGS@
+CFLAGS = @CFLAGSG@ @VL_DEFS@ @UFLAGS@
 YACC = @YACC@
 LEX = @LEX@
 OSNAME = @OSNAME@
@@ -68,6 +68,7 @@ $(BASE)/lib/miscutil.a::
 	fi
 
 clean:
+	-@cd test; $(MAKE) $@
 	-@rm -f *.o *.a vl$(EXESUFFIX)
 
 distclean: clean
@@ -98,6 +99,9 @@ depend:
 	    $(DEPEND_PROG) $(INCLUDE) main.cc $(CCFILES) \
   $(FILTER) >> Makefile; \
 	fi
+
+test::
+	-@cd test; $(MAKE) $@
 
 #######################################################################
 ####### Installation ##################################################

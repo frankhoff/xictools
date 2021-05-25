@@ -584,10 +584,12 @@ namespace {
 
 
     // Return true if c is one of the special characters included, which
-    // break words
+    // break words.
     //
     inline bool breakword(char c)
     {
+        if (CP.GetFlag(CP_NOBRKTOK))
+            return (false);
         return (c == '<' || c == '>' || c == ';' || c == '&');
     }
 }
@@ -598,6 +600,7 @@ namespace {
 //
 
 #define FILENO(fp) ((fp) ? fileno(fp) : -1)
+
 
 wordlist *
 CshPar::Lexer(const char *string)
@@ -1167,6 +1170,13 @@ CshPar::Getchar(int fd, bool literal, bool drain)
     if (!drain) {
         int esc_cnt = 0;
         for (;;) {
+
+            // The interrupt handler sets this.
+            if (cp_queue_interrupt) {
+                cp_queue_interrupt = false;
+                throw SIGINT;
+            }
+
             if (fifo_fd < 0 && Global.FifoName())
                 fifo_fd = open(Global.FifoName(), O_RDONLY | O_NONBLOCK);
             if (ofs >= MAX_RSP)

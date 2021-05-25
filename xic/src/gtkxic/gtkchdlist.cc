@@ -82,8 +82,8 @@ namespace {
             static void chl_cancel(GtkWidget*, void*);
             static void chl_action_proc(GtkWidget*, void*);
             static void chl_geom_proc(GtkWidget*, void*);
-            static bool chl_selection_proc(GtkTreeSelection*, GtkTreeModel*,
-                GtkTreePath*, bool, void*);
+            static int chl_selection_proc(GtkTreeSelection*, GtkTreeModel*,
+                GtkTreePath*, int, void*);
             static bool chl_focus_proc(GtkWidget*, GdkEvent*, void*);
             static bool chl_add_cb(const char*, const char*, int, void*);
             static bool chl_sav_cb(const char*, bool, void*);
@@ -315,14 +315,13 @@ sCHL::sCHL(GRobject c)
 
     GtkTreeSelection *sel =
         gtk_tree_view_get_selection(GTK_TREE_VIEW(chl_list));
-    gtk_tree_selection_set_select_function(sel,
-        (GtkTreeSelectionFunc)chl_selection_proc, 0, 0);
+    gtk_tree_selection_set_select_function(sel, chl_selection_proc, 0, 0);
     // TreeView bug hack, see note with handlers.   
     gtk_signal_connect(GTK_OBJECT(chl_list), "focus",
         GTK_SIGNAL_FUNC(chl_focus_proc), this);
 
     gtk_container_add(GTK_CONTAINER(swin), chl_list);
-    gtk_widget_set_usize(swin, 380, 120);
+    gtk_widget_set_size_request(swin, 380, 120);
 
     // Set up font and tracking.
     GTKfont::setupFont(chl_list, FNT_PROP, true);
@@ -962,7 +961,7 @@ sCHL::chl_geom_proc(GtkWidget*, void *client_data)
 {
     if (!CHL)
         return;
-    ChdCgdType tp = (ChdCgdType)(long)client_data;
+    ChdCgdType tp = (ChdCgdType)(intptr_t)client_data;
     sCHDin::set_default_cgd_type(tp);
 }
 
@@ -972,9 +971,9 @@ sCHL::chl_geom_proc(GtkWidget*, void *client_data)
 // is made, but not when the selection disappears, which happens when the
 // list is updated.
 //
-bool
+int
 sCHL::chl_selection_proc(GtkTreeSelection*, GtkTreeModel *store,
-    GtkTreePath *path, bool issel, void*)
+    GtkTreePath *path, int issel, void*)
 {
     if (CHL) {
         if (issel)

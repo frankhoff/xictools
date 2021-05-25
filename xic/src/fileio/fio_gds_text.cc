@@ -141,11 +141,7 @@ void
 gds_in::print_offset()
 {
     if (in_printing)
-#ifdef WIN32
-        fprintf(in_print_fp, "%09I64d ", (long long)in_offset);
-#else
-        fprintf(in_print_fp, "%09lld ", (long long)in_offset);
-#endif
+        fprintf(in_print_fp, "%09llu ", (unsigned long long)in_offset);
 }
 
 
@@ -287,11 +283,7 @@ gds_in::ap_bgnstr()
     if (!get_record())
         return (false);
     if (in_rectype != II_STRNAME) {
-#ifdef WIN32
-        fprintf(in_print_fp, ">> Unexpected record type %d at offset %I64u",
-#else
         fprintf(in_print_fp, ">> Unexpected record type %d at offset %llu",
-#endif
             in_rectype, (unsigned long long)in_offset);
         return (false);
     }
@@ -614,7 +606,7 @@ gds_in::ap_reflibs()
     tbuf[GDS_MAX_LIBNAM_LEN] = '\0';
     print_offset();
     print_space(4);
-    strncpy(tbuf, in_cbuf, GDS_MAX_LIBNAM_LEN);
+    memcpy(tbuf, in_cbuf, GDS_MAX_LIBNAM_LEN);  // avoid stringop-truncation
     print_word2("REFLIB", tbuf, false);
     strncpy(tbuf, in_cbuf + GDS_MAX_LIBNAM_LEN, GDS_MAX_LIBNAM_LEN);
     print_space(14);
@@ -630,7 +622,7 @@ gds_in::ap_fonts()
     tbuf[GDS_MAX_LIBNAM_LEN] = '\0';
     print_offset();
     print_space(4);
-    strncpy(tbuf, in_cbuf, GDS_MAX_LIBNAM_LEN);
+    memcpy(tbuf, in_cbuf, GDS_MAX_LIBNAM_LEN);  // avoid stringop-truncation
     print_word2("FONT0", tbuf, false);
     strncpy(tbuf, in_cbuf + GDS_MAX_LIBNAM_LEN, GDS_MAX_LIBNAM_LEN);
     print_space(14);

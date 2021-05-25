@@ -96,6 +96,7 @@ namespace {
 
             static void lp_font_changed();
             static void lp_cancel_proc(GtkWidget*, void*, unsigned);
+            static void lp_cancel_proc2(GtkWidget*, void*);
             static void lp_help_proc(GtkWidget*, void*, unsigned);
             static void lp_edit_proc(GtkWidget*, void*, unsigned);
             static void lp_delete_proc(GtkWidget*, void*, unsigned);
@@ -128,6 +129,7 @@ namespace {
             GtkWidget *lp_rho;              // Rho menu entry
             GtkWidget *lp_sigma;            // Sigma menu entry
             GtkWidget *lp_rsh;              // Rsh menu entry
+            GtkWidget *lp_tau;              // Tau menu entry
             GtkWidget *lp_epsrel;           // EpsRel menu entry
             GtkWidget *lp_cap;              // Capacitance menu entry
             GtkWidget *lp_lambda;           // Lambda menu entry
@@ -215,6 +217,7 @@ sLpe::sLpe(GRobject c, const char *msg, const char *string)
     lp_rho = 0;
     lp_sigma = 0;
     lp_rsh = 0;
+    lp_tau = 0;
     lp_epsrel = 0;
     lp_cap = 0;
     lp_lambda = 0;
@@ -230,8 +233,7 @@ sLpe::sLpe(GRobject c, const char *msg, const char *string)
     lp_start = 0;
     lp_end = 0;
 
-    lp_popup = gtk_NewPopup(0, "Tech Parameter Editor",
-        (void(*)(GtkWidget*, void*))lp_cancel_proc, 0);
+    lp_popup = gtk_NewPopup(0, "Tech Parameter Editor", lp_cancel_proc2, 0);
     if (!lp_popup)
         return;
 
@@ -242,9 +244,10 @@ sLpe::sLpe(GRobject c, const char *msg, const char *string)
     //
     // menu bar
     //
-    GtkItemFactoryEntry menu_items[50];
-    int nitems = 0;
+#define NUM_MENU_ITEMS 60
+    GtkItemFactoryEntry menu_items[NUM_MENU_ITEMS];
 
+    int nitems = 0;
     IFINIT(nitems, "/_Edit", 0, 0, 0, "<Branch>");
     IFINIT(nitems, "/Edit/_Edit", "<control>E", lp_edit_proc, 0, 0);
     IFINIT(nitems, "/Edit/_Delete", "<control>D", lp_delete_proc, 0, 0);
@@ -293,6 +296,8 @@ sLpe::sLpe(GRobject c, const char *msg, const char *string)
         exContact, 0);
     IFINIT(nitems, "/Extract Keywords/Via", 0, lp_kw_proc,
         exVia, 0);
+    IFINIT(nitems, "/Extract Keywords/ViaCut", 0, lp_kw_proc,
+        exViaCut, 0);
     IFINIT(nitems, "/Extract Keywords/Dielectric", 0, lp_kw_proc,
         exDielectric, 0);
     IFINIT(nitems, "/Extract Keywords/DarkField", 0, lp_kw_proc,
@@ -304,12 +309,18 @@ sLpe::sLpe(GRobject c, const char *msg, const char *string)
         phPlanarize, 0);
     IFINIT(nitems, "/Physical Keywords/Thickness", 0, lp_kw_proc,
         phThickness, 0);
+    IFINIT(nitems, "/Physical Keywords/FH_nhinc", 0, lp_kw_proc,
+        phFH_nhinc, 0);
+    IFINIT(nitems, "/Physical Keywords/FH_rh", 0, lp_kw_proc,
+        phFH_rh, 0);
     IFINIT(nitems, "/Physical Keywords/Rho", 0, lp_kw_proc,
         phRho, 0);
     IFINIT(nitems, "/Physical Keywords/Sigma", 0, lp_kw_proc,
         phSigma, 0);
     IFINIT(nitems, "/Physical Keywords/Rsh", 0, lp_kw_proc,
         phRsh, 0);
+    IFINIT(nitems, "/Physical Keywords/Tau", 0, lp_kw_proc,
+        phTau, 0);
     IFINIT(nitems, "/Physical Keywords/EpsRel", 0, lp_kw_proc,
         phEpsRel, 0);
     IFINIT(nitems, "/Physical Keywords/Capacitance", 0, lp_kw_proc,
@@ -329,7 +340,6 @@ sLpe::sLpe(GRobject c, const char *msg, const char *string)
         cvStreamOut, 0);
     IFINIT(nitems, "/Convert Keywords/NoDrcDataType", 0, lp_kw_proc,
         cvNoDrcDataType, 0);
-
 
     IFINIT(nitems, "/Global _Attributes", 0, 0, 0, "<Branch>");
     IFINIT(nitems, "/Global Attributes/BoxLineStyle", 0, lp_attr_proc,
@@ -388,6 +398,7 @@ sLpe::sLpe(GRobject c, const char *msg, const char *string)
     lp_rho = gtk_item_factory_get_widget(ifc, "/Physical Keywords/Rho");
     lp_sigma = gtk_item_factory_get_widget(ifc, "/Physical Keywords/Sigma");
     lp_rsh = gtk_item_factory_get_widget(ifc, "/Physical Keywords/Rsh");
+    lp_tau = gtk_item_factory_get_widget(ifc, "/Physical Keywords/Tau");
     lp_epsrel = gtk_item_factory_get_widget(ifc, "/Physical Keywords/EpsRel");
     lp_cap = gtk_item_factory_get_widget(ifc, "/Physical Keywords/Capacitance");
     lp_lambda = gtk_item_factory_get_widget(ifc, "/Physical Keywords/Lambda");
@@ -458,7 +469,7 @@ sLpe::sLpe(GRobject c, const char *msg, const char *string)
     const char *bclr = GRpkgIf()->GetAttrColor(GRattrColorLocSel);
     gtk_text_buffer_create_tag(textbuf, "primary", "background", bclr, NULL);
 
-    gtk_widget_set_usize(lp_text, DEF_WIDTH, DEF_HEIGHT);
+    gtk_widget_set_size_request(lp_text, DEF_WIDTH, DEF_HEIGHT);
 
     // The font change pop-up uses this to redraw the widget
     gtk_object_set_data(GTK_OBJECT(lp_text), "font_changed",
@@ -571,6 +582,7 @@ sLpe::update(const char *msg, const char *string)
             gtk_widget_set_sensitive(lp_rho, true);
             gtk_widget_set_sensitive(lp_sigma, true);
             gtk_widget_set_sensitive(lp_rsh, true);
+            gtk_widget_set_sensitive(lp_tau, true);
             gtk_widget_set_sensitive(lp_epsrel, true);
             gtk_widget_set_sensitive(lp_cap, true);
             gtk_widget_set_sensitive(lp_lambda, true);
@@ -587,10 +599,11 @@ sLpe::update(const char *msg, const char *string)
                     if (!lp_ldesc->isRouting())
                         gtk_widget_set_sensitive(lp_antenna, false);
                 }
-                else if (lp_ldesc->isVia()) {
+                else if (lp_ldesc->isVia() || lp_ldesc->isViaCut()) {
                     gtk_widget_set_sensitive(lp_rho, false);
                     gtk_widget_set_sensitive(lp_sigma, false);
                     gtk_widget_set_sensitive(lp_rsh, false);
+                    gtk_widget_set_sensitive(lp_tau, false);
                     gtk_widget_set_sensitive(lp_cap, false);
                     gtk_widget_set_sensitive(lp_lambda, false);
                     gtk_widget_set_sensitive(lp_tline, false);
@@ -602,13 +615,14 @@ sLpe::update(const char *msg, const char *string)
                         gtk_widget_set_sensitive(lp_rho, false);
                         gtk_widget_set_sensitive(lp_sigma, false);
                         gtk_widget_set_sensitive(lp_rsh, false);
+                        gtk_widget_set_sensitive(lp_tau, false);
                         gtk_widget_set_sensitive(lp_cap, false);
                         gtk_widget_set_sensitive(lp_lambda, false);
                         gtk_widget_set_sensitive(lp_tline, false);
                         gtk_widget_set_sensitive(lp_antenna, false);
                     }
                     else if (lp->rho() > 0.0 || lp->ohms_per_sq() > 0.0 ||
-                            lp->cap_per_area() > 0.0 ||
+                            lp->tau() > 0.0 || lp->cap_per_area() > 0.0 ||
                             lp->cap_per_perim() > 0.0 ||
                             lp->lambda() > 0.0 || lp->gp_lname() ||
                             lp->ant_ratio() > 0.0)
@@ -897,6 +911,13 @@ sLpe::check_sens()
 //
 void
 sLpe::lp_cancel_proc(GtkWidget*, void*, unsigned)
+{
+    XM()->PopUpLayerParamEditor(0, MODE_OFF, 0, 0);
+}
+
+// Static function.
+void
+sLpe::lp_cancel_proc2(GtkWidget*, void*)
 {
     XM()->PopUpLayerParamEditor(0, MODE_OFF, 0, 0);
 }

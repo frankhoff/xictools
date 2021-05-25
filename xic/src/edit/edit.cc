@@ -81,7 +81,8 @@ cEdit::cEdit()
     ed_push_data            = 0;
     ed_pcsuper              = 0;
     ed_pcparams             = 0;
-    ed_cur_grip             = 0;
+    ed_cur_grip1            = 0;
+    ed_cur_grip2            = 0;
     ed_gripdb               = 0;
     ed_wire_style           = CDWIRE_EXTEND;
     ed_move_or_copy         = CDmove;
@@ -187,32 +188,13 @@ cEdit::noEditing()
 //-----------------------------------------------------------------------------
 // Misc wrappers
 
-namespace ed_edit {
-    // This holds state for mode switching.
-    //
-    struct sEditState
-    {
-        sEditState()
-            {
-                PhysCX = ElecCX = 0;
-                PhysUL = ElecUL = 0;
-            }
-
-        CXstate *PhysCX;
-        CXstate *ElecCX;
-        ULstate *PhysUL;
-        ULstate *ElecUL;
-    };
-}
-
-
 void
 cEdit::invalidateLayer(CDs *sd, CDl *ld)
 {
     Ulist()->InvalidateLayer(sd, ld);
     PP()->InvalidateLayer(sd, ld);
 
-    ed_edit::sEditState *es = XM()->hist().editState();
+    sModeSave::EditState *es = XM()->hist().editState();
     if (es) {
         if (es->PhysUL) {
             Oper::purge(es->PhysUL->operations, sd, ld);
@@ -223,12 +205,12 @@ cEdit::invalidateLayer(CDs *sd, CDl *ld)
             Oper::purge(es->ElecUL->redo_list, sd, ld);
         }
         if (es->PhysCX) {
-            es->PhysCX->context->purge(sd, ld);
-            es->PhysCX->context_history->purge(sd, ld);
+            ContextDesc::purge(es->PhysCX->context(), sd, ld);
+            ContextDesc::purge(es->PhysCX->context_history(), sd, ld);
         }
         if (es->ElecCX) {
-            es->ElecCX->context->purge(sd, ld);
-            es->ElecCX->context_history->purge(sd, ld);
+            ContextDesc::purge(es->ElecCX->context(), sd, ld);
+            ContextDesc::purge(es->ElecCX->context_history(), sd, ld);
         }
     }
 }
@@ -242,7 +224,7 @@ cEdit::invalidateObject(CDs *sd, CDo *od, bool save)
 
     if (!sd)
         return;
-    ed_edit::sEditState *es = XM()->hist().editState();
+    sModeSave::EditState *es = XM()->hist().editState();
     if (es) {
         if (es->PhysUL) {
             Oper::purge(es->PhysUL->operations, sd, od);
@@ -253,16 +235,16 @@ cEdit::invalidateObject(CDs *sd, CDo *od, bool save)
             Oper::purge(es->ElecUL->redo_list, sd, od);
         }
         if (es->PhysCX) {
-            es->PhysCX->context =
-                es->PhysCX->context->purge(sd, od);
-            es->PhysCX->context_history =
-                es->PhysCX->context_history->purge(sd, od);
+            es->PhysCX->set_context(
+                ContextDesc::purge(es->PhysCX->context(), sd, od));
+            es->PhysCX->set_context_history(
+                ContextDesc::purge(es->PhysCX->context_history(), sd, od));
         }
         if (es->ElecCX) {
-            es->ElecCX->context =
-                es->ElecCX->context->purge(sd, od);
-            es->ElecCX->context_history =
-                es->ElecCX->context_history->purge(sd, od);
+            es->ElecCX->set_context(
+                ContextDesc::purge(es->ElecCX->context(), sd, od));
+            es->ElecCX->set_context_history(
+                ContextDesc::purge(es->ElecCX->context_history(), sd, od));
         }
     }
 }
@@ -279,9 +261,9 @@ cEdit::clearSaveState()
 void
 cEdit::popState(DisplayMode mode)
 {
-    ed_edit::sEditState *es = XM()->hist().editState();
+    sModeSave::EditState *es = XM()->hist().editState();
     if (!es) {
-        es = new ed_edit::sEditState;
+        es = new sModeSave::EditState;
         XM()->hist().setEditState(es);
     }
 
@@ -299,7 +281,7 @@ cEdit::popState(DisplayMode mode)
 void
 cEdit::pushState(DisplayMode mode)
 {
-    ed_edit::sEditState *es = XM()->hist().editState();
+    sModeSave::EditState *es = XM()->hist().editState();
     if (es) {
         if (mode == Physical) {
             PP()->PushState(es->PhysCX);

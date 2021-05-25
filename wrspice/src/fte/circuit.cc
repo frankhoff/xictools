@@ -156,6 +156,19 @@ CommandTab::com_where(wordlist*)
     const char *msg = Sp.CurCircuit()->runckt()->trouble(0);
     TTY.printf("Last nonconvergence at %s", msg);
 }
+
+
+void
+CommandTab::com_vastep(wordlist*)
+{
+    if (!Sp.CurCircuit() || !Sp.CurCircuit()->runckt()) {
+        Sp.Error(E_NOCURCKT);
+        return;
+    }
+    sCKT *ckt = Sp.CurCircuit()->runckt();
+    if (ckt->CKTvblk)
+        ckt->CKTqueva = true;
+}
 // End of CommandTab functions.
 
 
@@ -672,8 +685,18 @@ sFtCirc::dotparam(const char *word, IFdata *data)
         return (E_BADPARM);
     const sParam *p = ci_params->get(word);
     if (p) {
-        data->type = IF_REAL;
-        data->v.rValue = ci_params->eval(p);
+        bool err;
+        data->v.rValue = ci_params->eval(p, &err);
+        // If the content does not parse as an expression, accept it
+        // as a string.  Parameters can take string values so this is
+        // legitimate.
+
+        if (err) {
+            data->v.sValue = p->sub();
+            data->type = IF_STRING;
+        }
+        else
+            data->type = IF_REAL;
         return (OK);
     }
     return (E_BADPARM);

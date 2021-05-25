@@ -150,6 +150,7 @@ sLibMap::append_file_rc(stringlist *se, const char *line, bool hs_compat,
             delete [] path;
             path = lstring::getqtok(&lp);
         }
+        pathlist::env_subst(&path);
         if (path) {
             char *ptmp = pathlist::expand_path(path, false, false);
             if (ptmp) {
@@ -242,6 +243,7 @@ sLibMap::append_file_rc(stringlist *se, const char *line, bool hs_compat,
             delete [] path;
             path = lstring::getqtok(&lp);
         }
+        pathlist::env_subst(&path);
         char *name = lstring::gettok(&lp);
 
         if (name) {
@@ -360,7 +362,7 @@ sLibMap::append_file_rc(stringlist *se, const char *line, bool hs_compat,
 //
 // The file is a bare file name, and we have chdir'ed to its directory.
 //
-long
+intptr_t
 sLibMap::find(const char *file, const char *name)
 {
     if (!file)
@@ -403,7 +405,7 @@ sLibMap::find(const char *file, const char *name)
     delete [] lcname;
     if (!ent)
         return (LM_NO_NAME);
-    return ((long)ent->stData);
+    return ((intptr_t)ent->stData);
 }
 
 
@@ -461,8 +463,8 @@ sLibMap::map_lib(FILE *fp)
                         if (isupper(*tt))
                             *tt = tolower(*tt);
                     }
-                    unsigned long offs = ftell(fp);
-                    tab->add(tag, (void*)offs, false);
+                    intptr_t offs = ftell(fp);
+                    tab->add(tag, (void*)(uintptr_t)offs, false);
                 }
             }
 

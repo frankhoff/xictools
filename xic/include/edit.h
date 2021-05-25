@@ -64,8 +64,8 @@ struct CmdState;
 struct ParseNode;
 struct MenuBox;
 struct sObj;
-struct yb;
-struct Vtex;
+struct YankBuf;
+struct Vertex;
 namespace ginterf { struct GRvecFont; }
 
 // The default maximum number of outlined objects that can be attached
@@ -414,7 +414,7 @@ public:
     bool resolvePCell(CDcbin*, const char*, bool = false);
     bool reparamSubMaster(CDs*, const char*);
     bool reparamInstance(CDs*, CDc*, const CDp*, CDc** = 0);
-    bool resetInstance(CDc*, const char*, double);
+    bool resetInstance(CDc*, const char*, double, const char* = 0, double=0.0);
 
     // polygns.cc
     void sidesExec(CmdDesc*);                                       // export
@@ -426,8 +426,8 @@ public:
 
     // prpcedit.cc
     void cellPrptyAdd(int);
-    void cellPrptyEdit(Ptxt*);
-    void cellPrptyRemove(Ptxt*);
+    void cellPrptyEdit(PrptyText*);
+    void cellPrptyRemove(PrptyText*);
 
     // prpedit.cc
     void propertiesExec(CmdDesc*);
@@ -438,8 +438,8 @@ public:
     void prptySetInfoMode(bool);
     void prptyUpdateList(CDo*, CDo*);
     void prptyAdd(int);
-    void prptyEdit(Ptxt*);
-    void prptyRemove(Ptxt*);
+    void prptyEdit(PrptyText*);
+    void prptyRemove(PrptyText*);
     bool editPhysPrpty();
     bool acceptPseudoProp(CDo*, CDs*, int, const char*);
 
@@ -532,12 +532,12 @@ public:
     void PopUpCellProperties(ShowMode);
 
     // gtkprpedit.cc
-    Ptxt *PropertyResolve(int, int, CDo**);                         // export
+    PrptyText *PropertyResolve(int, int, CDo**);                    // export
     void PopUpProperties(CDo*, ShowMode, PRPmode);
     void PropertyPurge(CDo*, CDo*);
-    Ptxt *PropertySelect(int);
-    Ptxt *PropertyCycle(CDp*, bool(*)(const CDp*), bool);
-    void RegisterPrptyBtnCallback(int(*)(Ptxt*));
+    PrptyText *PropertySelect(int);
+    PrptyText *PropertyCycle(CDp*, bool(*)(const CDp*), bool);
+    void RegisterPrptyBtnCallback(int(*)(PrptyText*));
 
     // gtkprpinfo.cc
     void PopUpPropertyInfo(CDo*, ShowMode);
@@ -567,7 +567,8 @@ public:
     CDl *pressLayer()                       { return (ed_press_layer); }
     void setPressLayer(CDl *l)              { ed_press_layer = l; }
 
-    sGrip *getCurGrip()                     { return (ed_cur_grip); }
+    sGrip *getCurGrip1()                    { return (ed_cur_grip1); }
+    sGrip *getCurGrip2()                    { return (ed_cur_grip2); }
 
     cGripDb *getGripDb()                    { return (ed_gripdb); }
     void setGripDb(cGripDb *gdb)            { ed_gripdb = gdb; }
@@ -613,7 +614,7 @@ public:
     bool noWireWidthMag()                   { return (ed_no_wire_width_mag); }
     void setNoWireWidthMag(bool b)          { ed_no_wire_width_mag = b; }
 
-    yb **yankBuffer()                       { return (ed_yank_buffer); }
+    YankBuf **yankBuffer()                  { return (ed_yank_buffer); }
 
     const char *layerExpString(unsigned int i)
         {
@@ -669,7 +670,7 @@ private:
     // erase.cc
     bool clip(CDo*, CDs*, BBox*);
     bool erase(CDo*, CDs*, BBox*);
-    yb *add_yank(CDo*, BBox*, yb*, bool);
+    YankBuf *add_yank(CDo*, BBox*, YankBuf*, bool);
 
     // flatten.cc
     bool promote_object(cTfmStack*, CDo*, CDs*, CDtf*, CDtf*, bool, bool);
@@ -687,7 +688,7 @@ private:
 
     // modify.cc
     bool set_stretch_ref(CDo*, int*, int*, double*, int*, int*, bool);
-    bool stretch(CDo*, CDs*, int, int, int, int, int, Vtex*);
+    bool stretch(CDo*, CDs*, int, int, int, int, int, Vertex*);
     bool change_layer(CDo*, CDs*, CDl*, bool, bool, bool);
 
     // prpedit.cc
@@ -723,7 +724,8 @@ private:
     CDs *ed_pcsuper;            // Used during cell placement from GUI.
     PCellParam *ed_pcparams;
 
-    sGrip *ed_cur_grip;         // Stretch handle being manipulated.
+    sGrip *ed_cur_grip1;        // Stretch handle being manipulated.
+    sGrip *ed_cur_grip2;        // Second for x/y grips.
     cGripDb *ed_gripdb;         // Grip database for current cell.
 
     WireStyle ed_wire_style;    // End style for wires.
@@ -758,8 +760,8 @@ private:
 
     bool ed_no_wire_width_mag;  // Don't change width of magnified wires.
 
-    struct yb *ed_yank_buffer[ED_YANK_DEPTH]; // Storage for yanked geometry.
-    char *ed_lexpr_stores[ED_LEXPR_STORES]; // Saved layer expression strings.
+    YankBuf *ed_yank_buffer[ED_YANK_DEPTH];     // Storage for yanked geometry.
+    char *ed_lexpr_stores[ED_LEXPR_STORES];     // Saved layer expression strings.
 
     static GRvecFont *ed_logofont;
 };

@@ -65,8 +65,24 @@ JJdev::setModl(int param, IFdata *data, sGENmodel *genmod)
         model->JJictype = value->iValue;
         model->JJictypeGiven = true;
         break;
+    case JJ_MOD_TC:
+        model->JJtc = value->rValue;
+        model->JJtcGiven = true;
+        break;
+    case JJ_MOD_TNOM:
+        model->JJtnom = value->rValue;
+        model->JJtnomGiven = true;
+        break;
+    case JJ_MOD_DEFTEMP:
+        model->JJdeftemp = value->rValue;
+        model->JJdeftempGiven = true;
+        break;
+    case JJ_MOD_TCFCT:
+        model->JJtcfct = value->rValue;
+        model->JJtcfctGiven = true;
+        break;
     case JJ_MOD_VG:
-        model->JJvg = value->rValue;
+        model->JJvgnom = value->rValue;
         model->JJvgGiven = true;
         break;
     case JJ_MOD_DV:
@@ -124,6 +140,9 @@ JJdev::setModl(int param, IFdata *data, sGENmodel *genmod)
     case JJ_MOD_VSHUNT:
         model->JJvShunt = value->rValue;
         model->JJvShuntGiven = true;
+        break;
+    case JJ_MOD_FORCE:
+        model->JJforceGiven = true;
         break;
 #ifdef NEWLSH
     case JJ_MOD_LSH0:

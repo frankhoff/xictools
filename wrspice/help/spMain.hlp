@@ -9,17 +9,17 @@
     <table border=1 width=100% cellpadding=0 cellspacing=0>
     <tr><td bgcolor=white><img src=wrbannermain.gif width=300 align=left>
 !!IFDEF Windows
-    <font face=utopia color=royalblue size=4>
+    <font face=sans color=royalblue size=4>
 !!ELSE
-    <font face=utopia color=royalblue size=5>
+    <font face=sans color=royalblue size=5>
 !!ENDIF
     <br>&nbsp;&nbsp;<i>WRspice</i> Help</font></td></tr>
     <tr><td bgcolor=white height=40>
-    <font face=utopia color="#dd0000" size=5>&nbsp;&nbsp;%TITLE%</font></td></tr>
+    <font face=sans color="#dd0000" size=5>&nbsp;&nbsp;%TITLE%</font></td></tr>
     </table><p>
 
 !!FOOTER
-    <p><hr><font size=3 face=utopia color=darkblue>
+    <p><hr><font size=3 face=sans color=darkblue>
     &#169; Whiteley Research Inc. 2016, All Rights Reserved.</font>
 
 !!MAINTAG WRspice
@@ -1178,7 +1178,7 @@ Convergence
     circuit to converge to the desired state.
 
     <p>
-    See the section describing <a href=".op>operating point
+    See the section describing <a href=".op">operating point
     analysis</a> for a detailed description of the algorithms
     and information on convergence issues.
 
@@ -2368,7 +2368,7 @@ Support for ADMS/Verilog-A
     <dl>
     <dt><tt>info=</tt>"<i>string describing the parameter or variable</i>"<dd>
     The string will be used in the <i>WRspice</i> <a
-    href="show:><b>show</b></a> command and perhaps elsewhere.
+    href="show"><b>show</b></a> command and perhaps elsewhere.
     </dl>
 
     <dl>

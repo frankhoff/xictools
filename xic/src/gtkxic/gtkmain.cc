@@ -1082,7 +1082,8 @@ win_bag::subw_initialize(int wnum)
     char buf[32];
     sprintf(buf, "%s %d", XM()->Product(), wnum);
     wb_shell = gtk_NewPopup(mainBag(), buf, subwin_cancel_proc,
-        (void*)(long)wnum);
+        (void*)(intptr_t)wnum);
+    gtk_widget_set_size_request(wb_shell, 500, 400);
 
     wib_windesc = DSP()->Window(wnum);
     DSP()->Window(wnum)->SetWbag(this);
@@ -1121,7 +1122,6 @@ win_bag::subw_initialize(int wnum)
 
     gd_viewport = gtk_drawing_area_new();
     gtk_widget_set_name(gd_viewport, "Viewport");
-    gtk_drawing_area_size(GTK_DRAWING_AREA(gd_viewport), 500, 400);
     gtk_widget_show(gd_viewport);
 
     gtk_widget_add_events(gd_viewport, GDK_STRUCTURE_MASK);
@@ -1262,7 +1262,7 @@ win_bag::pre_destroy(int wnum)
     LastPos[wnum].height = rect.height;
 
     gtk_signal_disconnect_by_func(GTK_OBJECT(wb_shell),
-        GTK_SIGNAL_FUNC(subwin_cancel_proc), (void*)(long)wnum);
+        GTK_SIGNAL_FUNC(subwin_cancel_proc), (void*)(intptr_t)wnum);
 }
 
 
@@ -1322,6 +1322,8 @@ win_bag::SwitchFromPixmap(const BBox *BB)
             BB->width() + 1, abs(BB->height()) + 1);
         gd_window = wib_window_bak;
         wib_window_bak = 0;
+        // This fixes a display problem on OpenSuse plasma (at least).
+        gdk_flush();
     }
 }
 
@@ -2455,7 +2457,7 @@ win_bag::target_drag_motion(GtkWidget *widget, GdkDragContext*, gint, gint,
 void
 win_bag::subwin_cancel_proc(GtkWidget*, void *client_data)
 {
-    int wnum = (long)client_data;
+    int wnum = (intptr_t)client_data;
     if (wnum > 0 && wnum < DSP_NUMWINS)
         delete DSP()->Window(wnum);
 }
@@ -2593,7 +2595,7 @@ main_bag::initialize()
             rowcnt++;
         }
         else
-            gtk_widget_set_usize(btnarray, 36, -1);
+            gtk_widget_set_size_request(btnarray, 36, -1);
     }
 
     // Main drawing window (in frame).
@@ -2601,7 +2603,6 @@ main_bag::initialize()
     gd_viewport = gtk_drawing_area_new();
 
     gtk_widget_set_name(gd_viewport, "Viewport");
-    gtk_drawing_area_size(GTK_DRAWING_AREA(gd_viewport), 800, 600);
     gtk_widget_show(gd_viewport);
 
     gtk_widget_add_events(gd_viewport, GDK_STRUCTURE_MASK);

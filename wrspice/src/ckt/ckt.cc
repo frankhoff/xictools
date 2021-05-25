@@ -61,6 +61,7 @@ Authors: 1985 Thomas L. Quarles
 #include "sparse/spmatrix.h"
 #include "spnumber/hash.h"
 #include "miscutil/errorrec.h"
+#include "miscutil/pathlist.h"
 #ifdef HAVE_FLOAT_H
 #include <float.h>
 #endif
@@ -219,10 +220,8 @@ sGENmodel::~sGENmodel()
 
 int sCKT::CKTstepDebug = 0;
 
-sCKT::sCKT()
+sCKT::sCKT() : sCKTPOD()
 {
-    memset(this, 0, sizeof(sCKT));
-
     CKTsrcFact = 1.0;
     CKTorder = 1;
     CKTstat = new sSTATS();
@@ -646,20 +645,21 @@ sCKT::doTaskSetup()
         }
     }
 
-    // The unchanging (real) constants in the matrix
-    // are preloaded during setup.  For DC and TRAN
-    // analysis (including operating point for AC), we
-    // copy the real part of the matrix into an
-    // otherwise unused field.  The (dc) load
-    // function, rather than clearing the real matrix,
-    // loads it with this field.  This saves a bit of
-    // computation.
+    // If using KLU, the KLUmatrix is created, the original struct
+    // cleared, and all further matrix operations will be done using
+    // KLU.
+    //
+    CKTmatrix->spSwitchMatrix();
 
-    // This caches the real part for reinitializing
-    // the matrix with spLoadInitialization.  If using
-    // KLU, the KLUmatrix is created, the original
-    // struct cleared, and all further matrix
-    // operations will be done using KLU.
+    // The unchanging (real) constants in the matrix are preloaded
+    // during setup.  For DC and TRAN analysis (including operating
+    // point for AC), we copy the real part of the matrix into an
+    // otherwise unused field.  The (dc) load function, rather than
+    // clearing the real matrix, loads it with this field.  This saves
+    // a bit of computation.
+
+    // This caches the real part for reinitializing the matrix with
+    // spLoadInitialization.
     //
     CKTmatrix->spSaveForInitialization();
     if (CKTmatrix->spDataAddressChange()) {
@@ -2130,6 +2130,7 @@ sCKT::setup()
         if (error)
             return (error);
     }
+    CKTmatrix->spSetBuildState(0);
 
     // Set up Josephson junction support flags.
     CKTjjPresent = false;   // Circuit contains a Josephson junction.
@@ -2208,6 +2209,7 @@ sCKT::setup()
         if (error)
             return (error);
     }
+    CKTmatrix->spSetBuildState(1);
 
     CKTstateSize = CKTnumStates;
     for (int i = 0; i < 8; i++) {
@@ -2771,5 +2773,19 @@ sCKT::enableFPE(int state)
 {
     checkFPE(true);
     Sp.SetFPEmode((FPEmode)state);
+}
+// End of sCKT functions.
+
+
+// This is used in the TJM device library model.  It is kept out of
+// circuit.h due to the stdio reference.
+//
+FILE *tjm_fopen(const char *nm)
+{
+    const char *tjm_path = "( . ~/.mmjco )";
+    VTvalue vv;
+    if (Sp.GetVar("tjm_path", VTYP_STRING, &vv, Sp.CurCircuit()))
+        tjm_path = vv.get_string();
+    return (pathlist::open_path_file(nm, tjm_path, "r", 0, false));
 }
 

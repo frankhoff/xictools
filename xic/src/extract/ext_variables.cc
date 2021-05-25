@@ -680,6 +680,14 @@ namespace {
         CDvdb()->registerPostFunc(post_fc);
         return (true);
     }
+
+    bool
+    evFcZoids(const char*, bool set)
+    {
+        if (!set)
+            fcLayout::clear_dbg_zlist();
+        return (true);
+    }
 }
 
 
@@ -702,17 +710,56 @@ namespace {
     }
 
     bool
-    evFhMinRectSize(const char *vstring, bool set)
+    evFhManhGridCnt(const char *vstring, bool set)
     {
         if (set) {
-            double pmin = FH_MIN_RECT_SIZE_MIN;
-            double pmax = FH_MIN_RECT_SIZE_MAX;
+            double pmin = FH_MIN_MANH_GRID_CNT;
+            double pmax = FH_MAX_MANH_GRID_CNT;
             double d;
             if (str_to_dbl(&d, vstring) && d >= pmin && d <= pmax)
                 ;
             else {
                 Log()->ErrorLogV(mh::Variables,
-                    "Incorrect FhMinRectSize: range %.2f - %.1f.",
+                    "Incorrect FhManhGridCnt: range %.1f - %.1f.",
+                    pmin, pmax);
+                return (false);
+            }
+        }
+        CDvdb()->registerPostFunc(post_fh);
+        return (true);
+    }
+
+    bool
+    evFhDefNhinc(const char *vstring, bool set)
+    {
+        if (set) {
+            int pmin = FH_MIN_DEF_NHINC;
+            int pmax = FH_MAX_DEF_NHINC;
+            int d;
+            if (str_to_int(&d, vstring) && d >= pmin && d <= pmax)
+                ;
+            else {
+                Log()->ErrorLogV(mh::Variables,
+                    "Incorrect FhDefNhinc: range %d - %d.", pmin, pmax);
+                return (false);
+            }
+        }
+        CDvdb()->registerPostFunc(post_fh);
+        return (true);
+    }
+
+    bool
+    evFhDefRh(const char *vstring, bool set)
+    {
+        if (set) {
+            double pmin = FH_MIN_DEF_RH;
+            double pmax = FH_MAX_DEF_RH;
+            double d;
+            if (str_to_dbl(&d, vstring) && d >= pmin && d <= pmax)
+                ;
+            else {
+                Log()->ErrorLogV(mh::Variables,
+                    "Incorrect FhManhGridCnt: range %.3f - %.3f.",
                     pmin, pmax);
                 return (false);
             }
@@ -725,8 +772,8 @@ namespace {
     evFhVolElTarget(const char *vstring, bool set)
     {
         if (set) {
-            double pmin = FH_MIN_TARG_VOLEL;
-            double pmax = FH_MAX_TARG_VOLEL;
+            double pmin = FH_MIN_VOLEL_TARG;
+            double pmax = FH_MAX_VOLEL_TARG;
             double d;
             if (str_to_dbl(&d, vstring) && d >= pmin && d <= pmax)
                 ;
@@ -738,6 +785,34 @@ namespace {
             }
         }
         CDvdb()->registerPostFunc(post_fh);
+        return (true);
+    }
+
+    bool
+    evFhVolElMin(const char *vstring, bool set)
+    {
+        if (set) {
+            double pmin = FH_MIN_VOLEL_MIN;
+            double pmax = FH_MAX_VOLEL_MIN;
+            double d;
+            if (str_to_dbl(&d, vstring) && d >= pmin && d <= pmax)
+                ;
+            else {
+                Log()->ErrorLogV(mh::Variables,
+                    "Incorrect FhVolElMin: range %.1f - %.1f.",
+                    pmin, pmax);
+                return (false);
+            }
+        }
+        CDvdb()->registerPostFunc(post_fh);
+        return (true);
+    }
+
+    bool
+    evFhZoids(const char*, bool set)
+    {
+        if (!set)
+            fhLayout::clear_dbg_zlist();
         return (true);
     }
 }
@@ -837,15 +912,24 @@ cExt::setupVariables()
     vsetup(VA_FcPath,               S,  evFC);
     vsetup(VA_FcPlaneBloat,         S,  evFcPlaneBloat);
     vsetup(VA_FcUnits,              S,  evFC);
+    vsetup(VA_FcZoids,              B,  evFcZoids);
 
     // FastHenry Interface
     vsetup(VA_FhArgs,               S,  evFH);
+    vsetup(VA_FhDefaults,           S,  evFH);
+    vsetup(VA_FhDefNhinc,           S,  evFhDefNhinc);
+    vsetup(VA_FhDefRh,              S,  evFhDefRh);
     vsetup(VA_FhForeg,              B,  evFH);
     vsetup(VA_FhFreq,               S,  evFH);
-    vsetup(VA_FhMinRectSize,        S,  evFhMinRectSize);
+    vsetup(VA_FhManhGridCnt,        S,  evFhManhGridCnt);
     vsetup(VA_FhMonitor,            B,  evFH);
+    vsetup(VA_FhOverride,           B,  evFH);
     vsetup(VA_FhPath,               S,  evFH);
     vsetup(VA_FhUnits,              S,  evFH);
+    vsetup(VA_FhUseFilament,        B,  evFH);
+    vsetup(VA_FhVolElEnable,        B,  evFH);
+    vsetup(VA_FhVolElMin,           S,  evFhVolElMin);
     vsetup(VA_FhVolElTarget,        S,  evFhVolElTarget);
+    vsetup(VA_FhZoids,              B,  evFhZoids);
 }
 

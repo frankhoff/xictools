@@ -203,41 +203,38 @@ IFoutput::stopCmd(wordlist *wl)
 
 
 void
-IFoutput::statusCmd(char **ps)
+IFoutput::statusCmd(sLstr *plstr)
 {
-    if (ps)
-        *ps = 0;
     const char *msg = "No runops are in effect.\n";
     if (!o_runops->isset() &&
             (!Sp.CurCircuit() || !Sp.CurCircuit()->runops().isset())) {
-        if (!ps)
+        if (!plstr)
             TTY.send(msg);
         else
-            *ps = lstring::copy(msg);
+            plstr->add(msg);
         return;
     }
-    char **t = ps;
     sRunopDb *db = Sp.CurCircuit() ? &Sp.CurCircuit()->runops() : 0;
 
     ROgen<sRunopSave> svgen(o_runops->saves(), db ? db->saves() : 0);
     for (sRunopSave *d = svgen.next(); d; d = svgen.next())
-        d->print(t);
+        d->print(plstr);
 
     ROgen<sRunopTrace> tgen(o_runops->traces(), db ? db->traces() : 0);
     for (sRunopTrace *d = tgen.next(); d; d = tgen.next())
-        d->print(t);
+        d->print(plstr);
 
     ROgen<sRunopIplot> igen(o_runops->iplots(), db ? db->iplots() : 0);
     for (sRunopIplot *d = igen.next(); d; d = igen.next())
-        d->print(t);
+        d->print(plstr);
 
     ROgen<sRunopMeas> mgen(o_runops->measures(), db ? db->measures() : 0);
     for (sRunopMeas *d = mgen.next(); d; d = mgen.next())
-        d->print(t);
+        d->print(plstr);
 
     ROgen<sRunopStop> sgen(o_runops->stops(), db ? db->stops() : 0);
     for (sRunopStop *d = sgen.next(); d; d = sgen.next())
-        d->print(t);
+        d->print(plstr);
 }
 
 
@@ -432,7 +429,7 @@ IFoutput::initRunops(sRunDesc *run)
     for (sRunopMeas *d = mgen.next(); d; d = mgen.next()) {
         if (run->job()->JOBtype != d->analysis())
             continue;
-        d->reset(run->runPlot());
+        d->reset();
     }
 
     ROgen<sRunopStop> sgen(o_runops->stops(), db ? db->stops() : 0);
@@ -697,10 +694,9 @@ IFoutput::checkRunops(sRunDesc *run, double ref)
         for (sRunopTrace *d = tgen.next(); d; d = tgen.next())
             d->print_trace(run->runPlot(), &tflag, run->pointsSeen());
 
-/*XXX handle these somehow?
-// can't do actual measurements since we don't have data, but
-// process call/print and, maybe create new vector with expression
-// result.
+        // We know that there are no interval measures, since these force
+        // OutcCheckSeg.
+
         bool measures_done = true;
         bool measure_queued = false;
         ROgen<sRunopMeas> mgen(o_runops->measures(), db ? db->measures() : 0);
@@ -720,7 +716,7 @@ IFoutput::checkRunops(sRunDesc *run, double ref)
             for (sRunopMeas *d = mgen.next(); d; d = mgen.next()) {
                 if (run->anType() != d->analysis())
                     continue;
-                if (!d->do_measure(run))
+                if (!d->do_measure())
                     measures_done = false;
             }
             run->unsegmentizeVecs();
@@ -739,21 +735,32 @@ IFoutput::checkRunops(sRunDesc *run, double ref)
         }
 
         ROgen<sRunopStop> sgen(o_runops->stops(), db ? db->stops() : 0);
-        for (sRunopStop *d = sgen.next(); d; d = sgen.next())
+        for (sRunopStop *d = sgen.next(); d; d = sgen.next()) {
             ROret r = d->check_stop(run);
             if (r == RO_PAUSE || r == RO_ENDIT) {
-                bool need_pr = TTY.is_tty() && CP.GetFlag(CP_WAITING);
-                TTY.printf("%-2d: condition met: ", d->number());
-                d->print_cond(0, false);
                 if (r == RO_PAUSE)
                     o_shouldstop = true;
                 else
                     o_endit = true;
-                if (need_pr)
-                    CP.Prompt();
+                if (!d->silent()) {
+                    bool need_pr = TTY.is_tty() && CP.GetFlag(CP_WAITING);
+                    TTY.printf("%-2d: condition met: ", d->number());
+                    d->print_cond(0, false);
+                    if (need_pr)
+                        CP.Prompt();
+                }
             }
         }
-*/
+
+        // Get status from stops/measures for trial state.
+        if (o_endit)
+            chk->set_nogo(true);
+        if (o_shouldstop) {
+            o_endit = true;
+            o_shouldstop = false;
+            chk->set_failed(true);
+        }
+
         if (chk->points()) {
             bool increasing = run->job()->JOBoutdata->initValue <=
                 run->job()->JOBoutdata->finalValue;
@@ -838,7 +845,7 @@ IFoutput::checkRunops(sRunDesc *run, double ref)
                 for (sRunopMeas *d = mgen.next(); d; d = mgen.next()) {
                     if (run->anType() != d->analysis())
                         continue;
-                    if (!d->do_measure(run))
+                    if (!d->do_measure())
                         measures_done = false;
                 }
                 run->unsegmentizeVecs();
@@ -947,7 +954,7 @@ IFoutput::pauseTest(sRunDesc *run)
 }
 
 
-// Return true if an runop of DF_XXX type given in which exists.
+// Return true if a runop of DF_??? type given in which exists.
 //
 bool
 IFoutput::hasRunop(unsigned int which)
@@ -990,21 +997,40 @@ IFoutput::hasRunop(unsigned int which)
     }
     return (false);
 }
+
+
+// Called when running operating range or Monte Carlo analysis to
+// determine if we should keep all output data or not.  If not doing
+// interval measurement, we (probably) only need the current data
+// point.
+//
+bool
+IFoutput::hasIntervalMeasure()
+{
+    sRunopDb *db = Sp.CurCircuit() ? &Sp.CurCircuit()->runops() : 0;
+    ROgen<sRunopMeas> mgen(o_runops->measures(), db ? db->measures() : 0);
+    for (sRunopMeas *d = mgen.next(); d; d = mgen.next()) {
+        if (d->end().active())
+            return (true);
+    }
+    return (false);
+}
 // End of IFoutput functions.
 
 
 void
-sRunopSave::print(char **retstr)
+sRunopSave::print(sLstr *plstr)
 {
     const char *msg0 = "%c %-4d %s %s\n";
     char buf[BSIZE_SP];
-    if (!retstr)
+    if (!plstr) {
         TTY.printf(msg0, ro_active ? ' ' : 'I', ro_number,
             kw_save,  ro_string);
+    }
     else {
         sprintf(buf, msg0, ro_active ? ' ' : 'I', ro_number,
             kw_save,  ro_string);
-        *retstr = lstring::build_str(*retstr, buf);
+        plstr->add(buf);
     }
 }
 
@@ -1018,17 +1044,18 @@ sRunopSave::destroy()
 
 
 void
-sRunopTrace::print(char **retstr)
+sRunopTrace::print(sLstr *plstr)
 {
     const char *msg0 = "%c %-4d %s %s\n";
     char buf[BSIZE_SP];
-    if (!retstr)
+    if (!plstr) {
         TTY.printf(msg0, ro_active ? ' ' : 'I', ro_number,
             kw_trace,  ro_string ? ro_string : "");
+    }
     else {
         sprintf(buf, msg0, ro_active ? ' ' : 'I', ro_number,
             kw_trace,  ro_string ? ro_string : "");
-        *retstr = lstring::build_str(*retstr, buf);
+        plstr->add(buf);
     }
 }
 
@@ -1107,18 +1134,18 @@ sRunopTrace::print_trace(sPlot *plot, bool *flag, int pnt)
 
 
 void
-sRunopIplot::print(char **retstr)
+sRunopIplot::print(sLstr *plstr)
 {
     const char *msg2 = "%c %-4d %s %s\n";
     char buf[BSIZE_SP];
-    if (!retstr) {
+    if (!plstr) {
         TTY.printf(msg2, ro_active ? ' ' : 'I', ro_number, kw_iplot,
             ro_string);
     }
     else {
         sprintf(buf, msg2, ro_active ? ' ' : 'I', ro_number, kw_iplot,
             ro_string);
-        *retstr = lstring::build_str(*retstr, buf);
+        plstr->add(buf);
     }
 }
 

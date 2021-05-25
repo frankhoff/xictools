@@ -468,27 +468,28 @@ IFsimulator::GetVar(const char *name, VTYPenum type, VTvalue *retval,
             return (true);
         }
         if (type == VTYP_STRING && v->type() == VTYP_LIST) {
-            char *s = lstring::copy("(");
+            sLstr lstr;
+            lstr.add_c('(');
             for (variable *vv = v->list(); vv; vv = vv->next()) {
                 switch (vv->type()) {
                 case VTYP_NUM:
                     sprintf(buf, " %d", vv->integer());
-                    s = lstring::build_str(s, buf);
+                    lstr.add(buf);
                     break;
                 case VTYP_REAL:
                     sprintf(buf, " %g", vv->real());
-                    s = lstring::build_str(s, buf);
+                    lstr.add(buf);
                     break;
                 case VTYP_STRING:
                     sprintf(buf, " %s", vv->string());
-                    s = lstring::build_str(s, buf);
+                    lstr.add(buf);
                     break;
                 default:
                     break;
                 }
             }
-            s = lstring::build_str(s, " )");
-            retval->set_string(s);
+            lstr.add(" )");
+            retval->set_string(lstr.string_trim());
             return (true);
         }
         if ((type == VTYP_REAL || type == VTYP_NUM) &&
@@ -529,7 +530,7 @@ namespace {
 // Print the values of currently defined variables.
 //
 void
-IFsimulator::VarPrint(char **retstr)
+IFsimulator::VarPrint(sLstr *plstr)
 {
     // Copy the list of current circuit variables.
     variable *cktvars = 0;
@@ -609,7 +610,7 @@ IFsimulator::VarPrint(char **retstr)
     }
     std::sort(vars, vars + i, vcmp);
 
-    if (!retstr)
+    if (!plstr)
         TTY.send("\n");
     for (int j = 0; j < i; j++) {
         char buf[1024];
@@ -618,44 +619,46 @@ IFsimulator::VarPrint(char **retstr)
         v = vars[j].x_v;
         if (v->type() == VTYP_BOOL) {
             const char *fmt = "%c %-18s\n";
-            if (!retstr)
+            if (!plstr)
                 TTY.printf(fmt, vars[j].x_char, v->name());
             else {
                 sprintf(buf, fmt, vars[j].x_char, v->name());
-                *retstr = lstring::build_str(*retstr, buf);
+                plstr->add(buf);
             }
         }
         else {
             const char *fmt = "%c %-18s";
-            if (!retstr) 
+            if (!plstr) 
                 TTY.printf("%c %-18s", vars[j].x_char, v->name());
-            else
+            else {
                 sprintf(buf, "%c %-18s", vars[j].x_char, v->name());
+                plstr->add(buf);
+            }
 
             wordlist *wl = v->varwl();
             char *s = wordlist::flatten(wl);
             wordlist::destroy(wl);
             if (v->type() == VTYP_LIST) {
                 fmt = "( %s )\n";
-                if (!retstr)
+                if (!plstr)
                     TTY.printf(fmt, s);
                 else {
-                    sprintf(buf + strlen(buf), fmt, s);
-                    *retstr = lstring::build_str(*retstr, buf);
+                    sprintf(buf, fmt, s);
+                    plstr->add(buf);
                 }
             }
             else {
-                if (!retstr)
+                if (!plstr)
                     TTY.printf("%s\n", s);
                 else {
-                    sprintf(buf + strlen(buf), "%s\n", s);
-                    *retstr = lstring::build_str(*retstr, buf);
+                    sprintf(buf, "%s\n", s);
+                    plstr->add(buf);
                 }
             }
             delete [] s;
         }
     }
-    if (!retstr)
+    if (!plstr)
         TTY.send("\n");
     variable::destroy(plvars);
     variable::destroy(cktvars);
@@ -880,7 +883,9 @@ IFsimulator::EnqVectorVar(const char *word, bool varcheck)
             }
         }
 
-        sDataVec *d;
+        sDataVec *d = 0;
+        unsigned int length = 0;
+        unsigned int exist = 0;
         char *word_strp = lstring::copy(word);
         if (range && (*word != SpecCatchar()))
             word_strp[range - word] = 0;
@@ -897,7 +902,21 @@ IFsimulator::EnqVectorVar(const char *word, bool varcheck)
         }
         else {
             sCKT *ckt = ft_curckt ? ft_curckt->runckt() : 0;
-            d = OP.vecGet(word_strp, ckt, varcheck);
+            if (*word_strp == '?') {
+                exist = 1;
+                if (OP.isVec(word_strp+1, ckt))
+                    exist++;
+            }
+            else if (*word_strp == '#') {
+                d = OP.vecGet(word_strp+1, ckt, true);
+                if (d) {
+                    length = d->length();
+                    d = 0;
+                }
+            }
+            else {
+                d = OP.vecGet(word_strp, ckt, varcheck);
+            }
         }
         delete [] word_strp;
 
@@ -908,6 +927,14 @@ IFsimulator::EnqVectorVar(const char *word, bool varcheck)
                     "only one vector may be accessed with the $& notation.\n");
                 d = d->link()->dl_dvec;
             }
+            if (d->flags() & VF_STRING) {
+                // The parameter has string type, is is passed in the
+                // defcolor field.
+
+                vv = new variable(word);
+                vv->set_string(d->defcolor());
+                return (vv);
+            }
             if (d->numdims() <= 1) {
                 d->set_numdims(1);
                 d->set_dims(0, d->length());
@@ -915,6 +942,14 @@ IFsimulator::EnqVectorVar(const char *word, bool varcheck)
             if (up == -1)
                 up = d->dims(0) - 1;
             vv = vec2var(d, low, up);
+        }
+        else if (exist) {
+            vv = new variable;
+            vv->set_boolean(exist == 2);
+        }
+        else if (length) {
+            vv = new variable;
+            vv->set_integer(length);
         }
         return (vv);
     } 

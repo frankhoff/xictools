@@ -44,8 +44,6 @@
 #ifdef TJM_DEBUG
 #include <stdio.h>
 #endif
-//XXX
-#include <stdio.h>
 
 
 #if defined(__GNUC__) && (defined(i386) || defined(__x86_64__))
@@ -86,13 +84,6 @@ TJMdev::load(sGENinstance *in_inst, sCKT *ckt)
             ts.ts_pfac = 1.0;
             ts.ts_dcrt = 0;
             ts.ts_crt  = inst->TJMcriti;
-/*XXX
-            if (ckt->CKTmode & MODEINITSMSIG) {
-                // We don't want/need this except when setting up for AC
-                // analysis.
-                ts.tjm_iv(model, inst);
-            }
-*/
             inst->tjm_load(ckt, ts);
             // don't load shunt
 #ifdef NEWLSH
@@ -531,7 +522,7 @@ sTJMinstance::tjm_newstep(sCKT *ckt)
     double kdt = model->tjm_kgap*model->TJMomegaJ*ckt->CKTdelta;
 
     for (int i = 0; i < model->tjm_narray; i++) {
-        IFcomplex z(model->tjm_P[i]*kdt);
+        IFcomplex z(model->tjm_p[i]*kdt);
         double d = exp(z.real);
         cIFcomplex ez(d*cos(z.imag), d*sin(z.imag));
         tjm_exp_z[i] = ez;
